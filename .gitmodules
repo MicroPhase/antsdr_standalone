@@ -1,0 +1,8 @@
+[submodule "no-OS"]
+	path = no-OS
+	url = https://github.com/MicroPhase/no-OS.git
+	branch = 2019_R1
+[submodule "hdl"]
+	path = hdl
+	url = https://github.com/MicroPhase/hdl.git
+	branch = 2019_r1
