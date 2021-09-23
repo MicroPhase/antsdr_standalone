@@ -5,4 +5,4 @@
 [submodule "hdl"]
 	path = hdl
 	url = https://github.com/MicroPhase/hdl.git
-	branch = 2019_r1
+	branch = vivado2018.3
