@@ -17,11 +17,11 @@ Standalone application based on ADI hdl and no_OS for ANTSDR.
 git clone --recursive https://github.com/MicroPhase/antsdr_standalone.git
 ```
 
-![image-20210924190649784](README.assets\image-20210924190649784.png)
+![image-20210924190649784](README.assets/image-20210924190649784.png)
 
 注意：在下载源码的时候，使用--recursive会递归的下载子模块当中的文件，只有这样才能保证所需要的版本是一致的。
 
-![image-20210924190926940](README.assets\image-20210924190926940.png)
+![image-20210924190926940](README.assets/image-20210924190926940.png)
 
 下载完源码之后，你将会看到有一个**hdl**和**no-OS**文件夹。接下来就介绍如何在windows下使用vivado2018.3来复原工程。
 
