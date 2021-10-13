@@ -108,6 +108,18 @@
 #define GPIO_CTL2_PIN				96
 #define GPIO_CTL3_PIN				97
 
+/* RF switch define */
+#define GPIO_RX1_BAND_SEL_H				54
+#define GPIO_RX1_BAND_SEL_L				55
+#define GPIO_TX1_BAND_SEL_H				56
+#define GPIO_TX1_BAND_SEL_L				57
+#define GPIO_RX2_BAND_SEL_H				58
+#define GPIO_RX2_BAND_SEL_L				59
+#define GPIO_TX2_BAND_SEL_H				60
+#define GPIO_TX2_BAND_SEL_L				61
+
+
+
 #else
 #ifdef XPAR_DDR3_SDRAM_S_AXI_BASEADDR
 #define ADC_DDR_BASEADDR			XPAR_DDR3_SDRAM_S_AXI_BASEADDR + 0x800000

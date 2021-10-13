@@ -54,6 +54,7 @@
 #include "adc_core.h"
 #include "dac_core.h"
 #include "platform.h"
+#include "parameters.h"
 #ifdef _XPARAMETERS_PS_H_
 #include <sleep.h>
 #else
@@ -271,6 +272,28 @@ void gpio_data(uint8_t pin, uint8_t data)
 void gpio_set_value(unsigned gpio, int value)
 {
 	gpio_data(gpio, value);
+}
+
+/* rf switch init */
+void rf_switch_init()
+{
+	gpio_direction(GPIO_RX1_BAND_SEL_H   ,1);
+	gpio_direction(GPIO_RX1_BAND_SEL_L   ,1);
+	gpio_direction(GPIO_TX1_BAND_SEL_H   ,1);
+	gpio_direction(GPIO_TX1_BAND_SEL_L   ,1);
+	gpio_direction(GPIO_RX2_BAND_SEL_H   ,1);
+	gpio_direction(GPIO_RX2_BAND_SEL_L   ,1);
+	gpio_direction(GPIO_TX2_BAND_SEL_H   ,1);
+	gpio_direction(GPIO_TX2_BAND_SEL_L   ,1);
+
+	gpio_set_value(GPIO_RX1_BAND_SEL_H   ,1);
+	gpio_set_value(GPIO_RX1_BAND_SEL_L   ,0);
+	gpio_set_value(GPIO_TX1_BAND_SEL_H   ,1);
+	gpio_set_value(GPIO_TX1_BAND_SEL_L   ,0);
+	gpio_set_value(GPIO_RX2_BAND_SEL_H   ,1);
+	gpio_set_value(GPIO_RX2_BAND_SEL_L   ,0);
+	gpio_set_value(GPIO_TX2_BAND_SEL_H   ,1);
+	gpio_set_value(GPIO_TX2_BAND_SEL_L   ,0);
 }
 
 /***************************************************************************//**

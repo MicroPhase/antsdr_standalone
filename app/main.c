@@ -403,6 +403,7 @@ int main(void)
 	gpio_init(default_init_param.gpio_resetb);
 #else
 	gpio_init(GPIO_DEVICE_ID);
+	rf_switch_init();
 #endif
 	gpio_direction(default_init_param.gpio_resetb, 1);
 

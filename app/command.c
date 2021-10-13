@@ -44,6 +44,8 @@
 #include "console.h"
 #include "ad9361_api.h"
 #include "dac_core.h"
+#include "platform.h"
+#include "parameters.h"
 
 /******************************************************************************/
 /************************ Constants Definitions *******************************/
@@ -173,6 +175,22 @@ void get_tx_lo_freq(double* param, char param_no) // "tx_lo_freq?" command
 	uint64_t lo_freq_hz;
 
 	ad9361_get_tx_lo_freq(ad9361_phy, &lo_freq_hz);
+	/* set tx rf switch */
+	if(lo_freq_hz <= 3000000000){
+		gpio_set_value(GPIO_TX1_BAND_SEL_H   ,0);
+		gpio_set_value(GPIO_TX1_BAND_SEL_L   ,1);
+		gpio_set_value(GPIO_TX2_BAND_SEL_H   ,0);
+		gpio_set_value(GPIO_TX2_BAND_SEL_L   ,1);
+		ad9361_set_tx_rf_port_output(ad9361_phy, TXB);
+	}
+	else {
+		gpio_set_value(GPIO_TX1_BAND_SEL_H   ,1);
+		gpio_set_value(GPIO_TX1_BAND_SEL_L   ,0);
+		gpio_set_value(GPIO_TX2_BAND_SEL_H   ,1);
+		gpio_set_value(GPIO_TX2_BAND_SEL_L   ,0);
+		ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
+	}
+
 	lo_freq_hz /= 1000000;
 	console_print("tx_lo_freq=%d\n", (uint32_t)lo_freq_hz);
 }
@@ -190,6 +208,23 @@ void set_tx_lo_freq(double* param, char param_no) // "tx_lo_freq=" command
 	{
 		lo_freq_hz = param[0];
 		lo_freq_hz *= 1000000;
+
+		/* set tx rf switch */
+		if(lo_freq_hz <= 3000000000){
+			gpio_set_value(GPIO_TX1_BAND_SEL_H   ,0);
+			gpio_set_value(GPIO_TX1_BAND_SEL_L   ,1);
+			gpio_set_value(GPIO_TX2_BAND_SEL_H   ,0);
+			gpio_set_value(GPIO_TX2_BAND_SEL_L   ,1);
+			ad9361_set_tx_rf_port_output(ad9361_phy, TXB);
+		}
+		else {
+			gpio_set_value(GPIO_TX1_BAND_SEL_H   ,1);
+			gpio_set_value(GPIO_TX1_BAND_SEL_L   ,0);
+			gpio_set_value(GPIO_TX2_BAND_SEL_H   ,1);
+			gpio_set_value(GPIO_TX2_BAND_SEL_L   ,0);
+			ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
+		}
+
 		ad9361_set_tx_lo_freq(ad9361_phy, lo_freq_hz);
 		lo_freq_hz /= 1000000;
 		console_print("tx_lo_freq=%d\n", (uint32_t)lo_freq_hz);
@@ -384,6 +419,23 @@ void set_rx_lo_freq(double* param, char param_no) // "rx_lo_freq=" command
 	{
 		lo_freq_hz = param[0];
 		lo_freq_hz *= 1000000;
+
+		/* set rx rf swicth */
+		if(lo_freq_hz <= 3000000000){
+			gpio_set_value(GPIO_RX1_BAND_SEL_H   ,0);
+			gpio_set_value(GPIO_RX1_BAND_SEL_L   ,1);
+			gpio_set_value(GPIO_RX2_BAND_SEL_H   ,0);
+			gpio_set_value(GPIO_RX2_BAND_SEL_L   ,1);
+			ad9361_set_rx_rf_port_input(ad9361_phy, B_BALANCED);
+		}
+		else {
+			gpio_set_value(GPIO_RX1_BAND_SEL_H   ,1);
+			gpio_set_value(GPIO_RX1_BAND_SEL_L   ,0);
+			gpio_set_value(GPIO_RX2_BAND_SEL_H   ,1);
+			gpio_set_value(GPIO_RX2_BAND_SEL_L   ,0);
+			ad9361_set_rx_rf_port_input(ad9361_phy, A_BALANCED);
+		}
+
 		ad9361_set_rx_lo_freq(ad9361_phy, lo_freq_hz);
 		lo_freq_hz /= 1000000;
 		console_print("rx_lo_freq=%d\n", (uint32_t)lo_freq_hz);
