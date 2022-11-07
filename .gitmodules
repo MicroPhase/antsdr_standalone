@@ -1,8 +1,4 @@
-[submodule "no-OS"]
-	path = no-OS
-	url = https://github.com/MicroPhase/no-OS.git
-	branch = sdk2018.3
 [submodule "hdl"]
 	path = hdl
 	url = https://github.com/MicroPhase/hdl.git
-	branch = vivado2018.3
+	branch = antsdr_fmcomms

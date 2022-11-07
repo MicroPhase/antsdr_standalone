@@ -46,6 +46,7 @@
 #include "dac_core.h"
 #include "platform.h"
 #include "parameters.h"
+#include "config.h"
 
 /******************************************************************************/
 /************************ Constants Definitions *******************************/
@@ -175,6 +176,7 @@ void get_tx_lo_freq(double* param, char param_no) // "tx_lo_freq?" command
 	uint64_t lo_freq_hz;
 
 	ad9361_get_tx_lo_freq(ad9361_phy, &lo_freq_hz);
+#ifdef ANTSDR_E310
 	/* set tx rf switch */
 	if(lo_freq_hz <= 3000000000){
 		gpio_set_value(GPIO_TX1_BAND_SEL_H   ,0);
@@ -190,6 +192,9 @@ void get_tx_lo_freq(double* param, char param_no) // "tx_lo_freq?" command
 		gpio_set_value(GPIO_TX2_BAND_SEL_L   ,0);
 		ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
 	}
+#else
+		ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
+#endif
 
 	lo_freq_hz /= 1000000;
 	console_print("tx_lo_freq=%d\n", (uint32_t)lo_freq_hz);
@@ -208,7 +213,7 @@ void set_tx_lo_freq(double* param, char param_no) // "tx_lo_freq=" command
 	{
 		lo_freq_hz = param[0];
 		lo_freq_hz *= 1000000;
-
+#ifdef ANTSDR_E310
 		/* set tx rf switch */
 		if(lo_freq_hz <= 3000000000){
 			gpio_set_value(GPIO_TX1_BAND_SEL_H   ,0);
@@ -224,6 +229,9 @@ void set_tx_lo_freq(double* param, char param_no) // "tx_lo_freq=" command
 			gpio_set_value(GPIO_TX2_BAND_SEL_L   ,0);
 			ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
 		}
+#else
+		ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
+#endif
 
 		ad9361_set_tx_lo_freq(ad9361_phy, lo_freq_hz);
 		lo_freq_hz /= 1000000;
@@ -419,7 +427,7 @@ void set_rx_lo_freq(double* param, char param_no) // "rx_lo_freq=" command
 	{
 		lo_freq_hz = param[0];
 		lo_freq_hz *= 1000000;
-
+#ifdef ANTSDR_E310
 		/* set rx rf swicth */
 		if(lo_freq_hz <= 3000000000){
 			gpio_set_value(GPIO_RX1_BAND_SEL_H   ,0);
@@ -436,6 +444,9 @@ void set_rx_lo_freq(double* param, char param_no) // "rx_lo_freq=" command
 			ad9361_set_rx_rf_port_input(ad9361_phy, A_BALANCED);
 		}
 
+#else
+		ad9361_set_rx_rf_port_input(ad9361_phy, A_BALANCED);
+#endif
 		ad9361_set_rx_lo_freq(ad9361_phy, lo_freq_hz);
 		lo_freq_hz /= 1000000;
 		console_print("rx_lo_freq=%d\n", (uint32_t)lo_freq_hz);

@@ -6,8 +6,8 @@ Standalone application based on ADI hdl and no_OS for ANTSDR.
 ### 所需软件：
 
 - git (用于从github上下载源码)
-- vivado2018.3（用于复原工程）
-- xilinx sdk2018.3（用于搭建no-OS测试程序）
+- vivado2019.1（用于复原工程）
+- xilinx sdk2019.1（用于搭建no-OS测试程序）
 
 ### 下载源码
 
@@ -21,17 +21,17 @@ git clone --recursive https://github.com/MicroPhase/antsdr_standalone.git
 
 注意：在下载源码的时候，使用--recursive会递归的下载子模块当中的文件，只有这样才能保证所需要的版本是一致的。
 
-![image-20210924190926940](README.assets/image-20210924190926940.png)
+![image-20221107172649783](README.assets/image-20221107172649783.png)
 
-下载完源码之后，你将会看到有一个**hdl**和**no-OS**文件夹。接下来就介绍如何在windows下使用vivado2018.3来复原工程。
+下载完源码之后，你将会看到有一个**hdl**文件夹。接下来就介绍如何在windows下使用vivado2019.1来复原工程。
 
 ### 使用vivado tcl命令行复原工程
 
 关于使用vivado复原工程，可以参考adi官方说明：[ADI HDL Building](https://wiki.analog.com/resources/fpga/docs/build)
 
-打开vivado2018.3，在tcl命令窗口中进入到antsdr工程所在的目录：具体的路径你自己的情况而定。主要是定位到hdl/project/antsdr_e310/antsdr_lvds目录下。
+打开vivado2019.1，在tcl命令窗口中进入到antsdr工程所在的目录：具体的路径你自己的情况而定。主要是定位到hdl/project/antsdre310或者hdl/project/antsdre200目录下。
 
-![image-20210924191219202](README.assets/image-20210924191219202.png)
+![image-20221107172535645](README.assets/image-20221107172535645.png)
 
 然后依次执行如下命令：
 
@@ -53,16 +53,12 @@ Vivado在构建IP和工程的时候，需要等待较长的时间，请耐心等
 
 ![image-20210924193351690](README.assets/image-20210924193351690.png)
 
-等到整个工程综合完成之后，可以在该工程的 **antsdr_ccbob_lvds.sdk**文件夹下找到硬件描述文件，使用这个硬件描述文件，可以用来搭建no-OS工程。
-
-![image-20210924193626844](README.assets/image-20210924193626844.png)
-
-
+等到整个工程综合完成之后，可以在该工程的 **antsdre310.sdk**或者**antsdre200.sdk**文件夹下找到硬件描述文件，使用这个硬件描述文件，可以用来搭建no-OS工程。
 
 
 
 ### 搭建no-OS工程
-对于Windows用户，为了简单构建no-OS的过程，请直接使用已经提供好的no-OS源码，也就是在git下载下来的源文件下的app文件夹下的代码。
+对于Windows用户，为了简单构建no-OS的过程，请直接使用已经提供好的no-OS源码，也就是在git下载下来的源文件下的app_e310或者app_e200文件夹下的代码。
 
 在前面创建好的vivado工程中，直接Launch SDK.
 
@@ -84,6 +80,6 @@ Vivado在构建IP和工程的时候，需要等待较长的时间，请耐心等
 
 ### NOTE
 
-本次介绍的工程，主要基于ADRV9364完成，因为这是和ANTSDR最接近的一款设备。因此在该项目中只支持1R1T。但是相信用户经过前面的工程搭建，应该很容易就能够把工程转换到zed+FMCOMMS2/3/4上。只需要替换工程当中使用到主芯片为xc7z020clg400-2, 更换对应的约束文件即可。
+工程基于ADRV9361,可以支持2R2T。
 
-使用ADRV9364搭建工程的另外一个好处是，该工程只包含最基础的AD9361的通信链路，相较于zed+FMCOMMS2/3/4没有HDMI，AUDIO等外设，更容易理解。
+vivado版本需要使用vivado2019.1,这个版本是Vitis之前的最后一个有SDK的版本。我们许多其他项目也是基于这个版本进行的。(vitis软件太大，后续会看需要升级到vitis)。
