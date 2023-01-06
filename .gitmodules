@@ -1,4 +1,4 @@
 [submodule "hdl"]
 	path = hdl
 	url = https://github.com/MicroPhase/hdl.git
-	branch = antsdr_fmcomms
+	branch = antsdr_fmcomms_19
