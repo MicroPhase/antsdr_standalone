@@ -42,7 +42,9 @@
 /******************************************************************************/
 /***************************** Include Files **********************************/
 /******************************************************************************/
-#include "util.h"
+#include "ad9361_util.h"
+#include "gpio.h"
+#include "spi.h"
 
 /******************************************************************************/
 /*************************** Types Declarations *******************************/
@@ -110,6 +112,7 @@ typedef struct {
 	uint16_t	gc_lmt_overload_low_thresh;	/* adi,gc-lmt-overload-low-thresh */
 	uint8_t		gc_low_power_thresh;	/* adi,gc-low-power-thresh */
 	uint8_t		gc_max_dig_gain;	/* adi,gc-max-dig-gain */
+	uint8_t		gc_use_rx_fir_out_for_dec_pwr_meas_enable;	/* adi,gc-use-rx-fir-out-for-dec-pwr-meas-enable */
 	/* Gain MGC Control */
 	uint8_t		mgc_dec_gain_step;	/* adi,mgc-dec-gain-step */
 	uint8_t		mgc_inc_gain_step;	/* adi,mgc-inc-gain-step */
@@ -118,7 +121,7 @@ typedef struct {
 	uint8_t		mgc_split_table_ctrl_inp_gain_mode;	/* adi,mgc-split-table-ctrl-inp-gain-mode */
 	/* Gain AGC Control */
 	uint8_t		agc_adc_large_overload_exceed_counter;	/* adi,agc-adc-large-overload-exceed-counter */
-	uint8_t		agc_adc_large_overload_inc_steps;	/* adi,agc-adc-large-overload-inc-steps */
+	uint8_t		agc_adc_large_overload_inc_steps;	/* adi,agc-adc-large-overload-inc-steps - Name is misleading should be dec-steps*/
 	uint8_t		agc_adc_lmt_small_overload_prevent_gain_inc_enable;	/* adi,agc-adc-lmt-small-overload-prevent-gain-inc-enable */
 	uint8_t		agc_adc_small_overload_exceed_counter;	/* adi,agc-adc-small-overload-exceed-counter */
 	uint8_t		agc_dig_gain_step_size;	/* adi,agc-dig-gain-step-size */
@@ -170,6 +173,7 @@ typedef struct {
 	uint8_t		fagc_rst_gla_en_agc_pulled_high_en;	/* adi,fagc-rst-gla-en-agc-pulled-high-enable */
 	uint32_t	fagc_rst_gla_if_en_agc_pulled_high_mode;	/* adi,fagc-rst-gla-if-en-agc-pulled-high-mode */
 	uint32_t	fagc_power_measurement_duration_in_state5;	/* adi,fagc-power-measurement-duration-in-state5 */
+	uint32_t	fagc_large_overload_inc_steps;	/* adi,fagc-adc-large-overload-inc-steps - Name is misleading should be dec-steps */
 	/* RSSI Control */
 	uint32_t	rssi_delay;	/* adi,rssi-delay */
 	uint32_t	rssi_duration;	/* adi,rssi-duration */
@@ -240,6 +244,8 @@ typedef struct {
 	uint8_t		lvds_invert1_control;	/* adi,lvds-invert1-control */
 	uint8_t		lvds_invert2_control;	/* adi,lvds-invert2-control */
 	/* GPO Control */
+	uint8_t		gpo_manual_mode_enable;			/* adi,gpo-manual-mode-enable */
+	uint32_t	gpo_manual_mode_enable_mask;	/* adi,gpo-manual-mode-enable-mask */
 	uint8_t		gpo0_inactive_state_high_enable;	/* adi,gpo0-inactive-state-high-enable */
 	uint8_t		gpo1_inactive_state_high_enable;	/* adi,gpo1-inactive-state-high-enable */
 	uint8_t		gpo2_inactive_state_high_enable;	/* adi,gpo2-inactive-state-high-enable */
@@ -273,17 +279,24 @@ typedef struct {
 	uint32_t	tx1_mon_lo_cm;	/* adi,txmon-1-lo-cm */
 	uint32_t	tx2_mon_lo_cm;	/* adi,txmon-2-lo-cm */
 	/* GPIO definitions */
-	int32_t		gpio_resetb;	/* reset-gpios */
+	struct gpio_init_param	gpio_resetb;	/* reset-gpios */
 	/* MCS Sync */
-	int32_t		gpio_sync;		/* sync-gpios */
-	int32_t		gpio_cal_sw1;	/* cal-sw1-gpios */
-	int32_t		gpio_cal_sw2;	/* cal-sw2-gpios */
+	struct gpio_init_param	gpio_sync;	/* sync-gpios */
+	struct gpio_init_param	gpio_cal_sw1;	/* cal-sw1-gpios */
+	struct gpio_init_param	gpio_cal_sw2;	/* cal-sw2-gpios */
+
+	struct spi_init_param	spi_param;
+
 	/* External LO clocks */
 	uint32_t	(*ad9361_rfpll_ext_recalc_rate)(struct refclk_scale *clk_priv);
 	int32_t		(*ad9361_rfpll_ext_round_rate)(struct refclk_scale *clk_priv,
 			uint32_t rate);
 	int32_t		(*ad9361_rfpll_ext_set_rate)(struct refclk_scale *clk_priv,
 			uint32_t rate);
+#ifndef AXI_ADC_NOT_PRESENT
+	struct axi_adc_init	*rx_adc_init;
+	struct axi_dac_init	*tx_dac_init;
+#endif
 } AD9361_InitParam;
 
 typedef struct {
@@ -360,6 +373,8 @@ enum ad9361_ensm_mode {
 /* Initialize the AD9361 part. */
 int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 		     AD9361_InitParam *init_param);
+/* Free the allocated resources. */
+int32_t ad9361_remove(struct ad9361_rf_phy *phy);
 /* Set the Enable State Machine (ENSM) mode. */
 int32_t ad9361_set_en_state_machine_mode (struct ad9361_rf_phy *phy,
 		uint32_t mode);

@@ -43,18 +43,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
-
-/******************************************************************************/
-/********************** Macros and Constants Definitions **********************/
-/******************************************************************************/
-#define EIO			5	/* I/O error */
-#define EAGAIN		11	/* Try again */
-#define ENOMEM		12	/* Out of memory */
-#define EFAULT		14	/* Bad address */
-#define ENODEV		19	/* No such device */
-#define EINVAL		22	/* Invalid argument */
-#define EOPNOTSUPP	45	/* Operation not supported on transport endpoint */
-#define ETIMEDOUT	110	/* Connection timed out */
+#include "error.h"
 
 /******************************************************************************/
 /*************************** Types Declarations *******************************/
@@ -71,20 +60,7 @@ struct clk {
 };
 
 struct clk_hw {
-		struct clk *clk;
-};
-
-struct clk_init_data {
-	const char				*name;
-	const struct clk_ops	*ops;
-	const char				**parent_names;
-	uint8_t					num_parents;
-	uint32_t				flags;
-};
-
-struct clk_onecell_data {
-	struct clk		**clks;
-	uint32_t		clk_num;
+	struct clk *clk;
 };
 
 #endif

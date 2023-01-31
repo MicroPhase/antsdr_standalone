@@ -42,6 +42,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
+#include "gpio.h"
 #include "common.h"
 
 /******************************************************************************/
@@ -2818,9 +2819,9 @@
 #define MAX_LPF_GAIN			24
 #define MAX_DIG_GAIN			31
 
-#define MAX_BBPLL_FREF			70000000UL /* 70 MHz */
-#define MIN_BBPLL_FREQ			715000000UL /* 715 MHz */
-#define MAX_BBPLL_FREQ			1430000000UL /* 1430 MHz */
+#define MAX_BBPLL_FREF			70007000UL /* 70 MHz + 100ppm */
+#define MIN_BBPLL_FREQ			714928500UL /* 715 MHz - 100ppm */
+#define MAX_BBPLL_FREQ			1430143000UL /* 1430 MHz + 100ppm */
 #define MAX_BBPLL_DIV			64
 #define MIN_BBPLL_DIV			2
 
@@ -2835,16 +2836,28 @@
 #define MAX_ADC_CLK			640000000UL /* 640 MHz */
 #define MAX_DAC_CLK			(MAX_ADC_CLK / 2)
 
+/* Associated with outputs of stage */
+#define MAX_RX_HB1			245760000UL
+#define MAX_RX_HB2			320000000UL
+#define MAX_RX_HB3			640000000UL
+/* Associated with inputs of stage */
+#define MAX_TX_HB1			160000000UL
+#define MAX_TX_HB2			320000000UL
+#define MAX_TX_HB3			320000000UL
+
+#define MAX_BASEBAND_RATE		61440000UL
+
 #define MAX_MBYTE_SPI			8
 
 #define RFPLL_MODULUS			8388593UL
 #define BBPLL_MODULUS			2088960UL
 
-#define MAX_SYNTH_FREF			80000000UL /* 80 MHz */
-#define MIN_SYNTH_FREF			10000000UL /* 10 MHz */
+#define MAX_SYNTH_FREF			80008000UL /* 80 MHz + 100ppm */
+#define MIN_SYNTH_FREF			9999000UL /* 10 MHz - 100ppm */
 #define MIN_VCO_FREQ_HZ			6000000000ULL
 #define MAX_CARRIER_FREQ_HZ		6000000000ULL
-#define MIN_CARRIER_FREQ_HZ		70000000ULL
+#define MIN_RX_CARRIER_FREQ_HZ	70000000ULL
+#define MIN_TX_CARRIER_FREQ_HZ	46875001ULL
 
 #define AD9363A_MAX_CARRIER_FREQ_HZ	3800000000ULL
 #define AD9363A_MIN_CARRIER_FREQ_HZ	325000000ULL
@@ -2918,6 +2931,7 @@ struct gain_control {
 	uint16_t lmt_overload_low_thresh; /* 16..800 mV, 0x108 */
 	uint16_t dec_pow_measuremnt_duration; /* Samples, 0x15C */
 	uint8_t low_power_thresh; /* -64..0 dBFS, 0x114 */
+	bool use_rx_fir_out_for_dec_pwr_meas; /* clears 0x15C:6 USE_HB1_OUT_FOR_DEC_PWR_MEAS */
 
 	bool dig_gain_en; /* should be turned off, since ADI GT doesn't use dig gain */
 	uint8_t max_dig_gain; /* 0..31 */
@@ -3000,7 +3014,7 @@ struct gain_control {
 	enum f_agc_target_gain_index_type
 	f_agc_rst_gla_if_en_agc_pulled_high_mode; /* 0x0FB, 0x111 */
 	uint8_t f_agc_power_measurement_duration_in_state5; /* 0x109, 0x10a RX samples 0..524288*/
-
+	uint8_t f_agc_large_overload_inc_steps; /* 0x106 [D6:D4] 0..7 */
 };
 
 struct auxdac_control {
@@ -3082,6 +3096,8 @@ struct auxadc_control {
 };
 
 struct gpo_control {
+	uint32_t gpo_manual_mode_enable_mask;
+	bool gpo_manual_mode_en;
 	bool gpo0_inactive_state_high_en;
 	bool gpo1_inactive_state_high_en;
 	bool gpo2_inactive_state_high_en;
@@ -3201,12 +3217,6 @@ struct ad9361_phy_platform_data {
 	struct auxdac_control	auxdac_ctrl;
 	struct gpo_control	gpo_ctrl;
 	struct tx_monitor_control txmon_ctrl;
-
-	int32_t 			gpio_resetb;
-	/*  MCS SYNC */
-	int32_t 			gpio_sync;
-	int32_t				gpio_cal_sw1;
-	int32_t				gpio_cal_sw2;
 };
 
 struct rf_rx_gain {
@@ -3330,11 +3340,18 @@ enum dev_id {
 struct ad9361_rf_phy {
 	enum dev_id		dev_sel;
 	uint8_t 		id_no;
-	struct spi_device 	*spi;
+	struct spi_desc 	*spi;
+	struct gpio_desc 	*gpio_desc_resetb;
+	struct gpio_desc 	*gpio_desc_sync;
+	struct gpio_desc 	*gpio_desc_cal_sw1;
+	struct gpio_desc 	*gpio_desc_cal_sw2;
+#ifndef AXI_ADC_NOT_PRESENT
+	struct axi_adc		*rx_adc;
+	struct axi_dac		*tx_dac;
+#endif
 	struct clk 		*clk_refin;
 	struct clk 		*clks[NUM_AD9361_CLKS];
 	struct refclk_scale *ref_clk_scale[NUM_AD9361_CLKS];
-	struct clk_onecell_data	clk_data;
 	uint32_t (*ad9361_rfpll_ext_recalc_rate)(struct refclk_scale *clk_priv);
 	int32_t (*ad9361_rfpll_ext_round_rate)(struct refclk_scale *clk_priv,
 					       uint32_t rate);
@@ -3352,12 +3369,15 @@ struct ad9361_rf_phy {
 	bool 			ensm_pin_ctl_en;
 
 	bool			auto_cal_en;
+	bool			manual_tx_quad_cal_en;
 	uint64_t			last_tx_quad_cal_freq;
 	uint32_t			last_tx_quad_cal_phase;
 	uint64_t		current_tx_lo_freq;
 	uint64_t		current_rx_lo_freq;
 	bool			current_tx_use_tdd_table;
 	bool			current_rx_use_tdd_table;
+	uint32_t		current_rx_path_clks[NUM_RX_CLOCKS];
+	uint32_t		current_tx_path_clks[NUM_TX_CLOCKS];
 	uint32_t		flags;
 	uint32_t		cal_threshold_freq;
 	uint32_t			current_rx_bw_Hz;
@@ -3399,7 +3419,7 @@ struct ad9361_rf_phy {
 };
 
 struct refclk_scale {
-	struct spi_device	*spi;
+	struct spi_desc	*spi;
 	struct ad9361_rf_phy	*phy;
 	uint32_t			mult;
 	uint32_t			div;
@@ -3421,13 +3441,15 @@ enum debugfs_cmd {
 /******************************************************************************/
 /************************ Functions Declarations ******************************/
 /******************************************************************************/
-int32_t ad9361_spi_readm(struct spi_device *spi, uint32_t reg,
+int32_t ad9361_spi_readm(struct spi_desc *spi, uint32_t reg,
 			 uint8_t *rbuf, uint32_t num);
-int32_t ad9361_spi_read(struct spi_device *spi, uint32_t reg);
-int32_t ad9361_spi_write(struct spi_device *spi,
+int32_t ad9361_spi_read(struct spi_desc *spi, uint32_t reg);
+int32_t ad9361_spi_write(struct spi_desc *spi,
 			 uint32_t reg, uint32_t val);
 int32_t ad9361_reset(struct ad9361_rf_phy *phy);
-int32_t register_clocks(struct ad9361_rf_phy *phy);
+int32_t ad9361_register_clocks(struct ad9361_rf_phy *phy);
+int32_t ad9361_unregister_clocks(struct ad9361_rf_phy *phy);
+uint32_t ad9361_gt(struct ad9361_rf_phy *phy);
 int32_t ad9361_init_gain_tables(struct ad9361_rf_phy *phy);
 int32_t ad9361_setup(struct ad9361_rf_phy *phy);
 int32_t ad9361_post_setup(struct ad9361_rf_phy *phy);

@@ -1,9 +1,9 @@
 /***************************************************************************//**
  *   @file   util.h
- *   @brief  Header file of Util driver.
+ *   @brief  Implementation of utility functions.
  *   @author DBogdan (dragos.bogdan@analog.com)
 ********************************************************************************
- * Copyright 2013(c) Analog Devices, Inc.
+ * Copyright 2018(c) Analog Devices, Inc.
  *
  * All rights reserved.
  *
@@ -36,100 +36,123 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
-#ifndef __NO_OS_PORT_H__
-#define __NO_OS_PORT_H__
+#ifndef UTIL_H_
+#define UTIL_H_
 
 /******************************************************************************/
 /***************************** Include Files **********************************/
 /******************************************************************************/
-#include <limits.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include "ad9361.h"
-#include "common.h"
-#include "config.h"
-
-
+#include <stdbool.h>
 /******************************************************************************/
 /********************** Macros and Constants Definitions **********************/
 /******************************************************************************/
-#define SUCCESS									0
-#define ARRAY_SIZE(arr)							(sizeof(arr) / sizeof((arr)[0]))
-#define min(x, y)								(((x) < (y)) ? (x) : (y))
-#define min_t(type, x, y)						(type)min((type)(x), (type)(y))
-#define max(x, y)								(((x) > (y)) ? (x) : (y))
-#define max_t(type, x, y)						(type)max((type)(x), (type)(y))
-#define clamp(val, min_val, max_val)			(max(min((val), (max_val)), (min_val)))
-#define clamp_t(type, val, min_val, max_val)	(type)clamp((type)(val), (type)(min_val), (type)(max_val))
-#define DIV_ROUND_UP(x, y)						(((x) + (y) - 1) / (y))
-#define DIV_ROUND_CLOSEST(x, divisor)			(((x) + (divisor) / 2) / (divisor))
-#define BIT(x)									(1 << (x))
-#define CLK_IGNORE_UNUSED						BIT(3)
-#define CLK_GET_RATE_NOCACHE					BIT(6)
+#define BIT(x)	(1 << (x))
 
-#if defined(HAVE_VERBOSE_MESSAGES)
-#define dev_err(dev, format, ...)		({printf(format, ## __VA_ARGS__);printf("\n"); })
-#define dev_warn(dev, format, ...)		({printf(format, ## __VA_ARGS__);printf("\n"); })
-#if defined(HAVE_DEBUG_MESSAGES)
-#define dev_dbg(dev, format, ...)		({printf(format, ## __VA_ARGS__);printf("\n"); })
-#else
-#define dev_dbg(dev, format, ...)	({ if (0) printf(format, ## __VA_ARGS__); })
-#endif
-#define printk(format, ...)			printf(format, ## __VA_ARGS__)
-#else
-#define dev_err(dev, format, ...)	({ if (0) printf(format, ## __VA_ARGS__); })
-#define dev_warn(dev, format, ...)	({ if (0) printf(format, ## __VA_ARGS__); })
-#define dev_dbg(dev, format, ...)	({ if (0) printf(format, ## __VA_ARGS__); })
-#define printk(format, ...)			({ if (0) printf(format, ## __VA_ARGS__); })
-#endif
+#define ARRAY_SIZE(x) \
+	(sizeof(x) / sizeof((x)[0]))
 
-struct device {
-};
+#define DIV_ROUND_UP(x,y) \
+	(((x) + (y) - 1) / (y))
+#define DIV_ROUND_CLOSEST(x, y) \
+	(((x) + (y) / 2) / (y))
+#define DIV_ROUND_CLOSEST_ULL(x, y) \
+	DIV_ROUND_CLOSEST(x, y)
 
-struct spi_device {
-	struct device	dev;
-	uint8_t 		id_no;
-};
+#define min(x, y) \
+	(((x) < (y)) ? (x) : (y))
+#define min_t(type, x, y) \
+	(type)min((type)(x), (type)(y))
 
-struct axiadc_state {
-	struct ad9361_rf_phy	*phy;
-	uint32_t				pcore_version;
-};
+#define max(x, y) \
+	(((x) > (y)) ? (x) : (y))
+#define max_t(type, x, y) \
+	(type)max((type)(x), (type)(y))
 
-struct axiadc_chip_info {
-	char		*name;
-	int32_t		num_channels;
-};
+#define clamp(val, min_val, max_val) \
+	(max(min((val), (max_val)), (min_val)))
+#define clamp_t(type, val, min_val, max_val) \
+	(type)clamp((type)(val), (type)(min_val), (type)(max_val))
 
-struct axiadc_converter {
-	struct axiadc_chip_info	*chip_info;
-	uint32_t				scratch_reg[16];
-};
+#define swap(x, y) \
+	{typeof(x) _tmp_ = (x); (x) = (y); (y) = _tmp_;}
 
-#ifdef WIN32
-#include "basetsd.h"
-typedef SSIZE_T ssize_t;
-#define strsep(s, ct)				0
-#define snprintf(s, n, format, ...)	0
-#define __func__ __FUNCTION__
-#endif
+#define round_up(x,y) \
+		(((x)+(y)-1)/(y))
+
+#define BITS_PER_LONG 32
+
+#define GENMASK(h, l) ({ 					\
+		uint32_t t = (uint32_t)(~0UL);			\
+		t = t << (BITS_PER_LONG - (h - l + 1));		\
+		t = t >> (BITS_PER_LONG - (h + 1));		\
+		t;						\
+})
+
+#define bswap_constant_32(x) \
+	((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) | \
+	 (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
+
+#define bit_swap_constant_8(x) \
+	((((x) & 0x80) >> 7) | \
+	 (((x) & 0x40) >> 5) | \
+	 (((x) & 0x20) >> 3) | \
+	 (((x) & 0x10) >> 1) | \
+	 (((x) & 0x08) << 1) | \
+	 (((x) & 0x04) << 3) | \
+	 (((x) & 0x02) << 5) | \
+	 (((x) & 0x01) << 7))
+
+#define U16_MAX		((uint16_t)~0U)
+#define S16_MAX		((int16_t)(U16_MAX>>1))
+
+#define DIV_U64(x, y) (x / y)
+
+#define UNUSED_PARAM(x) ((void)x)
 
 /******************************************************************************/
 /************************ Functions Declarations ******************************/
 /******************************************************************************/
-int32_t clk_prepare_enable(struct clk *clk);
-uint32_t clk_get_rate(struct ad9361_rf_phy *phy,
-					  struct refclk_scale *clk_priv);
-int32_t clk_set_rate(struct ad9361_rf_phy *phy,
-					 struct refclk_scale *clk_priv,
-					 uint32_t rate);
-uint32_t int_sqrt(uint32_t x);
-int32_t ilog2(int32_t x);
+/* Find first set bit in word. */
+uint32_t find_first_set_bit(uint32_t word);
+/* Find last set bit in word. */
+uint32_t find_last_set_bit(uint32_t word);
+/* Locate the closest element in an array. */
+uint32_t find_closest(int32_t val,
+		      const int32_t *array,
+		      uint32_t size);
+/* Shift the value and apply the specified mask. */
+uint32_t field_prep(uint32_t mask, uint32_t val);
+/* Get a field specified by a mask from a word. */
+uint32_t field_get(uint32_t mask, uint32_t word);
+/* Log base 2 of the given number. */
+int32_t log_base_2(uint32_t x);
+/* Find greatest common divisor of the given two numbers. */
+uint32_t greatest_common_divisor(uint32_t a,
+				 uint32_t b);
+/* Calculate best rational approximation for a given fraction. */
+void rational_best_approximation(uint32_t given_numerator,
+				 uint32_t given_denominator,
+				 uint32_t max_numerator,
+				 uint32_t max_denominator,
+				 uint32_t *best_numerator,
+				 uint32_t *best_denominator);
+/* Calculate the number of set bits. */
+uint32_t hweight8(uint32_t word);
+/* Calculate the quotient and the remainder of an integer division. */
 uint64_t do_div(uint64_t* n,
-				uint64_t base);
-uint32_t find_first_bit(uint32_t word);
-void * ERR_PTR(long error);
-void *zmalloc(size_t size);
+		uint64_t base);
+/* Unsigned 64bit divide with 64bit divisor and remainder */
+uint64_t div64_u64_rem(uint64_t dividend, uint64_t divisor,
+		       uint64_t *remainder);
+/* Unsigned 64bit divide with 32bit divisor with remainder */
+uint64_t div_u64_rem(uint64_t dividend, uint32_t divisor, uint32_t *remainder);
+/* Unsigned 64bit divide with 32bit divisor */
+uint64_t div_u64(uint64_t dividend, uint32_t divisor);
+/* Converts from string to int32_t */
+int32_t str_to_int32(const char *str);
+/* Converts from string to uint32_t */
+uint32_t srt_to_uint32(const char *str);
+#endif // UTIL_H_
 
-#endif

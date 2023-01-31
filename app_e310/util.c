@@ -1,9 +1,9 @@
 /***************************************************************************//**
  *   @file   util.c
- *   @brief  Implementation of Util Driver.
+ *   @brief  Implementation of utility functions.
  *   @author DBogdan (dragos.bogdan@analog.com)
 ********************************************************************************
- * Copyright 2013(c) Analog Devices, Inc.
+ * Copyright 2018(c) Analog Devices, Inc.
  *
  * All rights reserved.
  *
@@ -40,255 +40,158 @@
 /******************************************************************************/
 /***************************** Include Files **********************************/
 /******************************************************************************/
+#include <string.h>
+#include <stdlib.h>
 #include "util.h"
-#include "string.h"
-#include "platform.h"
-
+#include "errno.h"
 /******************************************************************************/
-/*************************** Macros Definitions *******************************/
+/************************** Functions Implementation **************************/
 /******************************************************************************/
-#define BITS_PER_LONG		32
 
-/***************************************************************************//**
- * @brief clk_prepare_enable
-*******************************************************************************/
-int32_t clk_prepare_enable(struct clk *clk)
+/**
+ * Find first set bit in word.
+ */
+uint32_t find_first_set_bit(uint32_t word)
 {
-	if (clk) {
-		// Unused variable - fix compiler warning
+	uint32_t first_set_bit = 0;
+
+	while (word) {
+		if (word & 0x1)
+			return first_set_bit;
+		word >>= 1;
+		first_set_bit ++;
 	}
 
-	return 0;
+	return 32;
 }
 
-/***************************************************************************//**
- * @brief clk_get_rate
-*******************************************************************************/
-uint32_t clk_get_rate(struct ad9361_rf_phy *phy,
-					  struct refclk_scale *clk_priv)
+/**
+ * Find last set bit in word.
+ */
+uint32_t find_last_set_bit(uint32_t word)
 {
-	uint32_t rate = 0;
-	uint32_t source;
+	uint32_t bit = 0;
+	uint32_t last_set_bit = 32;
 
-	source = clk_priv->source;
-
-	switch (source) {
-		case TX_REFCLK:
-		case RX_REFCLK:
-		case BB_REFCLK:
-			rate = ad9361_clk_factor_recalc_rate(clk_priv,
-						phy->clk_refin->rate);
-			break;
-		case TX_RFPLL_INT:
-		case RX_RFPLL_INT:
-			rate = ad9361_rfpll_int_recalc_rate(clk_priv,
-						phy->clks[clk_priv->parent_source]->rate);
-			break;
-		case RX_RFPLL_DUMMY:
-		case TX_RFPLL_DUMMY:
-			rate = ad9361_rfpll_dummy_recalc_rate(clk_priv);
-			break;
-		case TX_RFPLL:
-		case RX_RFPLL:
-			rate = ad9361_rfpll_recalc_rate(clk_priv);
-			break;
-		case BBPLL_CLK:
-			rate = ad9361_bbpll_recalc_rate(clk_priv,
-						phy->clks[clk_priv->parent_source]->rate);
-			break;
-		case ADC_CLK:
-		case R2_CLK:
-		case R1_CLK:
-		case CLKRF_CLK:
-		case RX_SAMPL_CLK:
-		case DAC_CLK:
-		case T2_CLK:
-		case T1_CLK:
-		case CLKTF_CLK:
-		case TX_SAMPL_CLK:
-			rate = ad9361_clk_factor_recalc_rate(clk_priv,
-						phy->clks[clk_priv->parent_source]->rate);
-			break;
-		default:
-			break;
+	while (word) {
+		if (word & 0x1)
+			last_set_bit = bit;
+		word >>= 1;
+		bit ++;
 	}
 
-	return rate;
+	return last_set_bit;
 }
 
-/***************************************************************************//**
- * @brief clk_set_rate
-*******************************************************************************/
-int32_t clk_set_rate(struct ad9361_rf_phy *phy,
-					 struct refclk_scale *clk_priv,
-					 uint32_t rate)
+/**
+ * Locate the closest element in an array.
+ */
+uint32_t find_closest(int32_t val,
+		      const int32_t *array,
+		      uint32_t size)
 {
-	uint32_t source;
-	int32_t i;
-	uint32_t round_rate;
+	int32_t diff = abs(array[0] - val);
+	uint32_t ret = 0;
+	uint32_t i;
 
-	source = clk_priv->source;
-	if(phy->clks[source]->rate != rate)
-	{
-		switch (source) {
-			case TX_REFCLK:
-			case RX_REFCLK:
-			case BB_REFCLK:
-				round_rate = ad9361_clk_factor_round_rate(clk_priv, rate,
-								&phy->clk_refin->rate);
-				ad9361_clk_factor_set_rate(clk_priv, round_rate,
-						phy->clk_refin->rate);
-				phy->clks[source]->rate = ad9361_clk_factor_recalc_rate(clk_priv,
-												phy->clk_refin->rate);
-				break;
-			case TX_RFPLL_INT:
-			case RX_RFPLL_INT:
-				round_rate = ad9361_rfpll_int_round_rate(clk_priv, rate,
-								&phy->clks[clk_priv->parent_source]->rate);
-				ad9361_rfpll_int_set_rate(clk_priv, round_rate,
-						phy->clks[clk_priv->parent_source]->rate);
-				phy->clks[source]->rate = ad9361_rfpll_int_recalc_rate(clk_priv,
-											phy->clks[clk_priv->parent_source]->rate);
-				break;
-			case RX_RFPLL_DUMMY:
-			case TX_RFPLL_DUMMY:
-				ad9361_rfpll_dummy_set_rate(clk_priv, rate);
-				break;
-			case TX_RFPLL:
-			case RX_RFPLL:
-				round_rate = ad9361_rfpll_round_rate(clk_priv, rate);
-				ad9361_rfpll_set_rate(clk_priv, round_rate);
-				phy->clks[source]->rate = ad9361_rfpll_recalc_rate(clk_priv);
-				break;
-			case BBPLL_CLK:
-				round_rate = ad9361_bbpll_round_rate(clk_priv, rate,
-								&phy->clks[clk_priv->parent_source]->rate);
-				ad9361_bbpll_set_rate(clk_priv, round_rate,
-					phy->clks[clk_priv->parent_source]->rate);
-				phy->clks[source]->rate = ad9361_bbpll_recalc_rate(clk_priv,
-											phy->clks[clk_priv->parent_source]->rate);
-				phy->bbpll_initialized = true;
-				break;
-			case ADC_CLK:
-			case R2_CLK:
-			case R1_CLK:
-			case CLKRF_CLK:
-			case RX_SAMPL_CLK:
-			case DAC_CLK:
-			case T2_CLK:
-			case T1_CLK:
-			case CLKTF_CLK:
-			case TX_SAMPL_CLK:
-				round_rate = ad9361_clk_factor_round_rate(clk_priv, rate,
-								&phy->clks[clk_priv->parent_source]->rate);
-				ad9361_clk_factor_set_rate(clk_priv, round_rate,
-						phy->clks[clk_priv->parent_source]->rate);
-				phy->clks[source]->rate = ad9361_clk_factor_recalc_rate(clk_priv,
-											phy->clks[clk_priv->parent_source]->rate);
-				break;
-			default:
-				break;
-		}
-		for(i = BB_REFCLK; i < BBPLL_CLK; i++)
-		{
-			phy->clks[i]->rate = ad9361_clk_factor_recalc_rate(phy->ref_clk_scale[i],
-									phy->clk_refin->rate);
-		}
-		phy->clks[BBPLL_CLK]->rate = ad9361_bbpll_recalc_rate(phy->ref_clk_scale[BBPLL_CLK],
-										phy->clks[phy->ref_clk_scale[BBPLL_CLK]->parent_source]->rate);
-		for(i = ADC_CLK; i < RX_RFPLL_INT; i++)
-		{
-			phy->clks[i]->rate = ad9361_clk_factor_recalc_rate(phy->ref_clk_scale[i],
-									phy->clks[phy->ref_clk_scale[i]->parent_source]->rate);
-		}
-		for(i = RX_RFPLL_INT; i < RX_RFPLL_DUMMY; i++)
-		{
-			phy->clks[i]->rate = ad9361_rfpll_int_recalc_rate(phy->ref_clk_scale[i],
-									phy->clks[phy->ref_clk_scale[i]->parent_source]->rate);
-		}
-		for(i = RX_RFPLL_DUMMY; i < RX_RFPLL; i++)
-		{
-			phy->clks[i]->rate = ad9361_rfpll_dummy_recalc_rate(phy->ref_clk_scale[i]);
-		}
-		for(i = RX_RFPLL; i < NUM_AD9361_CLKS; i++)
-		{
-			phy->clks[i]->rate = ad9361_rfpll_recalc_rate(phy->ref_clk_scale[i]);
-		}
-	} else {
-		if ((source == BBPLL_CLK) && !phy->bbpll_initialized) {
-			round_rate = ad9361_bbpll_round_rate(clk_priv, rate,
-							&phy->clks[clk_priv->parent_source]->rate);
-			ad9361_bbpll_set_rate(clk_priv, round_rate,
-				phy->clks[clk_priv->parent_source]->rate);
-			phy->clks[source]->rate = ad9361_bbpll_recalc_rate(clk_priv,
-										phy->clks[clk_priv->parent_source]->rate);
-			phy->bbpll_initialized = true;
+	for (i = 1; i < size; i++) {
+		if (abs(array[i] - val) < diff) {
+			diff = abs(array[i] - val);
+			ret = i;
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
-/***************************************************************************//**
- * @brief int_sqrt
-*******************************************************************************/
-uint32_t int_sqrt(uint32_t x)
+/**
+ * Shift the value and apply the specified mask.
+ */
+uint32_t field_prep(uint32_t mask, uint32_t val)
 {
-	uint32_t b, m, y = 0;
+	return (val << find_first_set_bit(mask)) & mask;
+}
 
-	if (x <= 1)
-		return x;
+/**
+ * Get a field specified by a mask from a word.
+ */
+uint32_t field_get(uint32_t mask, uint32_t word)
+{
+	return (word & mask) >> find_first_set_bit(mask);
+}
 
-	m = 1UL << (BITS_PER_LONG - 2);
-	while (m != 0) {
-		b = y + m;
-		y >>= 1;
+/**
+ * Log base 2 of the given number.
+ */
+int32_t log_base_2(uint32_t x)
+{
+	return find_last_set_bit(x);
+}
 
-		if (x >= b) {
-			x -= b;
-			y += m;
-		}
-		m >>= 2;
+/**
+ * Find greatest common divisor of the given two numbers.
+ */
+uint32_t greatest_common_divisor(uint32_t a,
+				 uint32_t b)
+{
+	uint32_t div;
+	uint32_t common_div = 1;
+
+	if ((a == 0) || (b == 0))
+		return max(a, b);
+
+	for (div = 1; (div <= a) && (div <= b); div++)
+		if (!(a % div) && !(b % div))
+			common_div = div;
+
+	return common_div;
+}
+
+/**
+ * Calculate best rational approximation for a given fraction.
+ */
+void rational_best_approximation(uint32_t given_numerator,
+				 uint32_t given_denominator,
+				 uint32_t max_numerator,
+				 uint32_t max_denominator,
+				 uint32_t *best_numerator,
+				 uint32_t *best_denominator)
+{
+	uint32_t gcd;
+
+	gcd = greatest_common_divisor(given_numerator, given_denominator);
+
+	*best_numerator = given_numerator / gcd;
+	*best_denominator = given_denominator / gcd;
+
+	if ((*best_numerator > max_numerator) ||
+	    (*best_denominator > max_denominator)) {
+		*best_numerator = 0;
+		*best_denominator = 0;
 	}
-
-	return y;
 }
 
-/***************************************************************************//**
- * @brief ilog2
-*******************************************************************************/
-int32_t ilog2(int32_t x)
+/**
+ * Calculate the number of set bits.
+ */
+uint32_t hweight8(uint32_t word)
 {
-	int32_t A = !(!(x >> 16));
-	int32_t count = 0;
-	int32_t x_copy = x;
+	uint32_t count = 0;
 
-	count = count + (A << 4);
-
-	x_copy = (((~A + 1) & (x >> 16)) + (~(~A + 1) & x));
-
-	A = !(!(x_copy >> 8));
-	count = count + (A << 3);
-	x_copy = (((~A + 1) & (x_copy >> 8)) + (~(~A + 1) & x_copy));
-
-	A = !(!(x_copy >> 4));
-	count = count + (A << 2);
-	x_copy = (((~A + 1) & (x_copy >> 4)) + (~(~A + 1) & x_copy));
-
-	A = !(!(x_copy >> 2));
-	count = count + (A << 1);
-	x_copy = (((~A + 1) & (x_copy >> 2)) + (~(~A + 1) & x_copy));
-
-	A = !(!(x_copy >> 1));
-	count = count + A;
+	while (word) {
+		if (word & 0x1)
+			count++;
+		word >>= 1;
+	}
 
 	return count;
 }
 
-/***************************************************************************//**
- * @brief do_div
-*******************************************************************************/
-uint64_t do_div(uint64_t* n, uint64_t base)
+/**
+ * Calculate the quotient and the remainder of an integer division.
+ */
+uint64_t do_div(uint64_t* n,
+		uint64_t base)
 {
 	uint64_t mod = 0;
 
@@ -298,51 +201,64 @@ uint64_t do_div(uint64_t* n, uint64_t base)
 	return mod;
 }
 
-/***************************************************************************//**
- * @brief find_first_bit
-*******************************************************************************/
-uint32_t find_first_bit(uint32_t word)
+/**
+ * Unsigned 64bit divide with 64bit divisor and remainder
+ */
+uint64_t div64_u64_rem(uint64_t dividend, uint64_t divisor, uint64_t *remainder)
 {
-	int32_t num = 0;
+	*remainder = dividend % divisor;
 
-	if ((word & 0xffff) == 0) {
-			num += 16;
-			word >>= 16;
-	}
-	if ((word & 0xff) == 0) {
-			num += 8;
-			word >>= 8;
-	}
-	if ((word & 0xf) == 0) {
-			num += 4;
-			word >>= 4;
-	}
-	if ((word & 0x3) == 0) {
-			num += 2;
-			word >>= 2;
-	}
-	if ((word & 0x1) == 0)
-			num += 1;
-	return num;
+	return dividend / divisor;
 }
 
-/***************************************************************************//**
- * @brief ERR_PTR
-*******************************************************************************/
-void * ERR_PTR(long error)
+/**
+ * Unsigned 64bit divide with 32bit divisor with remainder
+ */
+uint64_t div_u64_rem(uint64_t dividend, uint32_t divisor, uint32_t *remainder)
 {
-	return (void *) error;
+	*remainder = do_div(&dividend, divisor);
+
+	return dividend;
 }
 
-/***************************************************************************//**
- * @brief zmalloc
-*******************************************************************************/
-void *zmalloc(size_t size)
+/**
+ * Unsigned 64bit divide with 32bit divisor
+ */
+uint64_t div_u64(uint64_t dividend, uint32_t divisor)
 {
-	void *ptr = malloc(size);
-	if (ptr)
-		memset(ptr, 0, size);
-	mdelay(1);
+	uint32_t remainder;
 
-	return ptr;
+	return div_u64_rem(dividend, divisor, &remainder);
+}
+
+/**
+ * Converts from string to int32_t
+ * @param *str
+ * @return int32_t
+ */
+int32_t str_to_int32(const char *str)
+{
+	char *end;
+	int32_t value = strtol(str, &end, 0);
+
+	if (end == str)
+		return -EINVAL;
+	else
+		return value;
+}
+
+/**
+ * Converts from string to uint32_t
+ * @param *str
+ * @return uint32_t
+ */
+uint32_t srt_to_uint32(const char *str)
+{
+	char *end;
+	uint32_t value = strtoul(str, &end, 0);
+
+	if (end == str)
+		return -EINVAL;
+	else
+		return value;
 }

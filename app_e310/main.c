@@ -1,5 +1,5 @@
 /***************************************************************************//**
- *   @file   main.c
+ *   @file   ad9361/src/main.c
  *   @brief  Implementation of Main Function.
  *   @author DBogdan (dragos.bogdan@analog.com)
 ********************************************************************************
@@ -40,25 +40,100 @@
 /******************************************************************************/
 /***************************** Include Files **********************************/
 /******************************************************************************/
-#include "config.h"
+#include <inttypes.h>
+#include "app_config.h"
 #include "ad9361_api.h"
 #include "parameters.h"
-#include "platform.h"
+#include "spi.h"
+#include "gpio.h"
+#include "delay.h"
+#ifdef XILINX_PLATFORM
+#include <xparameters.h>
+#include <xil_cache.h>
+#include "spi_extra.h"
+#include "gpio_extra.h"
+#include "irq.h"
+#include "irq_extra.h"
+#endif
+#ifdef LINUX_PLATFORM
+#include "linux_spi.h"
+#include "linux_gpio.h"
+#endif
+#include "axi_adc_core.h"
+#include "axi_dac_core.h"
+#include "axi_dmac.h"
+#include "error.h"
+
 #ifdef CONSOLE_COMMANDS
 #include "command.h"
 #include "console.h"
 #endif
-#ifdef XILINX_PLATFORM
-#include <xil_cache.h>
-#endif
-#if defined XILINX_PLATFORM || defined LINUX_PLATFORM || defined ALTERA_PLATFORM
-#include "adc_core.h"
-#include "dac_core.h"
-#endif
+
+#ifdef IIO_SUPPORT
+
+#include "iio_axi_adc.h"
+#include "iio_axi_dac.h"
+#include "iio_ad9361.h"
+#include "uart.h"
+#include "uart_extra.h"
+#include "xil_cache.h"
+
+#endif // IIO_SUPPORT
 
 /******************************************************************************/
 /************************ Variables Definitions *******************************/
 /******************************************************************************/
+#ifdef XILINX_PLATFORM
+struct xil_spi_init_param xil_spi_param = {
+#ifdef PLATFORM_MB
+	.type = SPI_PL,
+#else
+	.type = SPI_PS,
+#endif
+	.flags = 0
+};
+
+struct xil_gpio_init_param xil_gpio_param = {
+#ifdef PLATFORM_MB
+	.type = GPIO_PL,
+#else
+	.type = GPIO_PS,
+#endif
+	.device_id = GPIO_DEVICE_ID
+};
+#endif
+
+#ifdef GENERIC_PLATFORM
+extern const struct gpio_platform_ops generic_gpio_platform_ops;
+extern const struct spi_platform_ops generic_spi_platform_ops;
+#endif
+
+struct axi_adc_init rx_adc_init = {
+	"cf-ad9361-lpc",
+	RX_CORE_BASEADDR,
+	4
+};
+struct axi_dac_init tx_dac_init = {
+	"cf-ad9361-dds-core-lpc",
+	TX_CORE_BASEADDR,
+	4,
+	NULL
+};
+struct axi_dmac_init rx_dmac_init = {
+	"rx_dmac",
+	CF_AD9361_RX_DMA_BASEADDR,
+	DMA_DEV_TO_MEM,
+	0
+};
+struct axi_dmac *rx_dmac;
+struct axi_dmac_init tx_dmac_init = {
+	"tx_dmac",
+	CF_AD9361_TX_DMA_BASEADDR,
+	DMA_MEM_TO_DEV,
+	0
+};
+struct axi_dmac *tx_dmac;
+
 #ifdef CONSOLE_COMMANDS
 extern command	  	cmd_list[];
 extern char			cmd_no;
@@ -136,6 +211,7 @@ AD9361_InitParam default_init_param = {
 	704,	//gc_lmt_overload_low_thresh *** adi,gc-lmt-overload-low-thresh
 	24,		//gc_low_power_thresh *** adi,gc-low-power-thresh
 	15,		//gc_max_dig_gain *** adi,gc-max-dig-gain
+	0,		//gc_use_rx_fir_out_for_dec_pwr_meas_enable *** adi,gc-use-rx-fir-out-for-dec-pwr-meas-enable
 	/* Gain MGC Control */
 	2,		//mgc_dec_gain_step *** adi,mgc-dec-gain-step
 	2,		//mgc_inc_gain_step *** adi,mgc-inc-gain-step
@@ -196,6 +272,7 @@ AD9361_InitParam default_init_param = {
 	0,		//fagc_rst_gla_en_agc_pulled_high_en ***  adi,fagc-rst-gla-en-agc-pulled-high-enable
 	0,		//fagc_rst_gla_if_en_agc_pulled_high_mode ***  adi,fagc-rst-gla-if-en-agc-pulled-high-mode
 	64,		//fagc_power_measurement_duration_in_state5 ***  adi,fagc-power-measurement-duration-in-state5
+	2,		//fagc_large_overload_inc_steps *** adi,fagc-adc-large-overload-inc-steps
 	/* RSSI Control */
 	1,		//rssi_delay *** adi,rssi-delay
 	1000,	//rssi_duration *** adi,rssi-duration
@@ -270,6 +347,8 @@ AD9361_InitParam default_init_param = {
 	0xFF,	//lvds_invert1_control *** adi,lvds-invert1-control
 	0x0F,	//lvds_invert2_control *** adi,lvds-invert2-control
 	/* GPO Control */
+	0,		//gpo_manual_mode_enable *** adi,gpo-manual-mode-enable
+	0,		//gpo_manual_mode_enable_mask *** adi,gpo-manual-mode-enable-mask
 	0,		//gpo0_inactive_state_high_enable *** adi,gpo0-inactive-state-high-enable
 	0,		//gpo1_inactive_state_high_enable *** adi,gpo1-inactive-state-high-enable
 	0,		//gpo2_inactive_state_high_enable *** adi,gpo2-inactive-state-high-enable
@@ -303,82 +382,274 @@ AD9361_InitParam default_init_param = {
 	48,		//tx1_mon_lo_cm *** adi,txmon-1-lo-cm
 	48,		//tx2_mon_lo_cm *** adi,txmon-2-lo-cm
 	/* GPIO definitions */
-	-1,		//gpio_resetb *** reset-gpios
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+#endif
+	},		//gpio_resetb *** reset-gpios
 	/* MCS Sync */
-	-1,		//gpio_sync *** sync-gpios
-	-1,		//gpio_cal_sw1 *** cal-sw1-gpios
-	-1,		//gpio_cal_sw2 *** cal-sw2-gpios
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+#endif
+	},		//gpio_sync *** sync-gpios
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+#endif
+	},		//gpio_cal_sw1 *** cal-sw1-gpios
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+#endif
+	},		//gpio_cal_sw2 *** cal-sw2-gpios
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_rx1_ctrl_h *** gpio_rx1_ctrl_h
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_rx1_ctrl_l *** gpio_rx1_ctrl_l
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_tx1_ctrl_h *** gpio_tx1_ctrl_h
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_tx1_ctrl_l *** gpio_tx1_ctrl_l
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_rx2_ctrl_h *** gpio_rx2_ctrl_h
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_rx2_ctrl_l *** gpio_rx2_ctrl_l
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_tx2_ctrl_h *** gpio_tx2_ctrl_h
+
+	{
+		.number = -1,
+#ifdef XILINX_PLATFORM
+		.platform_ops = &xil_gpio_platform_ops,
+		.extra = &xil_gpio_param
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_gpio_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_gpio_platform_ops
+	#endif
+	},		//gpio_tx2_ctrl_l *** gpio_tx2_ctrl_l
+	{
+		.device_id = SPI_DEVICE_ID,
+		.mode = SPI_MODE_1,
+		.chip_select = SPI_CS,
+#ifdef XILINX_PLATFORM
+		.extra = &xil_spi_param,
+		.platform_ops = &xil_platform_ops
+#endif
+#ifdef LINUX_PLATFORM
+		.platform_ops = &linux_spi_platform_ops
+#endif
+#ifdef GENERIC_PLATFORM
+		.platform_ops = &generic_spi_platform_ops
+#endif
+	},
+
 	/* External LO clocks */
 	NULL,	//(*ad9361_rfpll_ext_recalc_rate)()
 	NULL,	//(*ad9361_rfpll_ext_round_rate)()
-	NULL	//(*ad9361_rfpll_ext_set_rate)()
+	NULL,	//(*ad9361_rfpll_ext_set_rate)()
+#ifndef AXI_ADC_NOT_PRESENT
+	&rx_adc_init,	// *rx_adc_init
+	&tx_dac_init,   // *tx_dac_init
+#endif
 };
 
 AD9361_RXFIRConfig rx_fir_config = {	// BPF PASSBAND 3/20 fs to 1/4 fs
 	3, // rx
 	0, // rx_gain
 	1, // rx_dec
-	{-4, -6, -37, 35, 186, 86, -284, -315,
-	 107, 219, -4, 271, 558, -307, -1182, -356,
-	 658, 157, 207, 1648, 790, -2525, -2553, 748,
-	 865, -476, 3737, 6560, -3583, -14731, -5278, 14819,
-	 14819, -5278, -14731, -3583, 6560, 3737, -476, 865,
-	 748, -2553, -2525, 790, 1648, 207, 157, 658,
-	 -356, -1182, -307, 558, 271, -4, 219, 107,
-	 -315, -284, 86, 186, 35, -37, -6, -4,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0}, // rx_coef[128]
-	 64, // rx_coef_size
-	 {0, 0, 0, 0, 0, 0}, //rx_path_clks[6]
-	 0 // rx_bandwidth
+	{
+		-4, -6, -37, 35, 186, 86, -284, -315,
+			107, 219, -4, 271, 558, -307, -1182, -356,
+			658, 157, 207, 1648, 790, -2525, -2553, 748,
+			865, -476, 3737, 6560, -3583, -14731, -5278, 14819,
+			14819, -5278, -14731, -3583, 6560, 3737, -476, 865,
+			748, -2553, -2525, 790, 1648, 207, 157, 658,
+			-356, -1182, -307, 558, 271, -4, 219, 107,
+			-315, -284, 86, 186, 35, -37, -6, -4,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0
+		}, // rx_coef[128]
+	64, // rx_coef_size
+	{0, 0, 0, 0, 0, 0}, //rx_path_clks[6]
+	0 // rx_bandwidth
 };
 
 AD9361_TXFIRConfig tx_fir_config = {	// BPF PASSBAND 3/20 fs to 1/4 fs
 	3, // tx
 	-6, // tx_gain
 	1, // tx_int
-	{-4, -6, -37, 35, 186, 86, -284, -315,
-	 107, 219, -4, 271, 558, -307, -1182, -356,
-	 658, 157, 207, 1648, 790, -2525, -2553, 748,
-	 865, -476, 3737, 6560, -3583, -14731, -5278, 14819,
-	 14819, -5278, -14731, -3583, 6560, 3737, -476, 865,
-	 748, -2553, -2525, 790, 1648, 207, 157, 658,
-	 -356, -1182, -307, 558, 271, -4, 219, 107,
-	 -315, -284, 86, 186, 35, -37, -6, -4,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0,
-	 0, 0, 0, 0, 0, 0, 0, 0}, // tx_coef[128]
-	 64, // tx_coef_size
-	 {0, 0, 0, 0, 0, 0}, // tx_path_clks[6]
-	 0 // tx_bandwidth
+	{
+		-4, -6, -37, 35, 186, 86, -284, -315,
+			107, 219, -4, 271, 558, -307, -1182, -356,
+			658, 157, 207, 1648, 790, -2525, -2553, 748,
+			865, -476, 3737, 6560, -3583, -14731, -5278, 14819,
+			14819, -5278, -14731, -3583, 6560, 3737, -476, 865,
+			748, -2553, -2525, 790, 1648, 207, 157, 658,
+			-356, -1182, -307, 558, 271, -4, 219, 107,
+			-315, -284, 86, 186, 35, -37, -6, -4,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0
+		}, // tx_coef[128]
+	64, // tx_coef_size
+	{0, 0, 0, 0, 0, 0}, // tx_path_clks[6]
+	0 // tx_bandwidth
 };
 struct ad9361_rf_phy *ad9361_phy;
 #ifdef FMCOMMS5
 struct ad9361_rf_phy *ad9361_phy_b;
 #endif
 
+
 /***************************************************************************//**
  * @brief main
 *******************************************************************************/
 int main(void)
 {
+	int32_t status;
 #ifdef XILINX_PLATFORM
 	Xil_ICacheEnable();
 	Xil_DCacheEnable();
+	default_init_param.spi_param.extra = &xil_spi_param;
+	default_init_param.spi_param.platform_ops = &xil_platform_ops;
 #endif
 
 #ifdef ALTERA_PLATFORM
+	default_init_param.spi_param.platform_ops = &altera_platform_ops;
+
 	if (altera_bridge_init()) {
 		printf("Altera Bridge Init Error!\n");
 		return -1;
@@ -387,27 +658,27 @@ int main(void)
 
 	// NOTE: The user has to choose the GPIO numbers according to desired
 	// carrier board.
-	default_init_param.gpio_resetb = GPIO_RESET_PIN;
+	default_init_param.gpio_resetb.number = GPIO_RESET_PIN;
+
+	default_init_param.gpio_rx1_ctrl_h.number = GPIO_RX1_BAND_SEL_H;
+	default_init_param.gpio_rx1_ctrl_l.number = GPIO_RX1_BAND_SEL_L;
+	default_init_param.gpio_tx1_ctrl_h.number = GPIO_TX1_BAND_SEL_H;
+	default_init_param.gpio_tx1_ctrl_l.number = GPIO_TX1_BAND_SEL_L;
+	default_init_param.gpio_rx2_ctrl_h.number = GPIO_RX2_BAND_SEL_H;
+	default_init_param.gpio_rx2_ctrl_l.number = GPIO_RX2_BAND_SEL_L;
+	default_init_param.gpio_tx2_ctrl_h.number = GPIO_TX2_BAND_SEL_H;
+	default_init_param.gpio_tx2_ctrl_l.number = GPIO_TX2_BAND_SEL_L;
+
 #ifdef FMCOMMS5
-	default_init_param.gpio_sync = GPIO_SYNC_PIN;
-	default_init_param.gpio_cal_sw1 = GPIO_CAL_SW1_PIN;
-	default_init_param.gpio_cal_sw2 = GPIO_CAL_SW2_PIN;
+	default_init_param.gpio_sync.number = GPIO_SYNC_PIN;
+	default_init_param.gpio_cal_sw1.number = GPIO_CAL_SW1_PIN;
+	default_init_param.gpio_cal_sw2.number = GPIO_CAL_SW2_PIN;
 	default_init_param.rx1rx2_phase_inversion_en = 1;
 #else
-	default_init_param.gpio_sync = -1;
-	default_init_param.gpio_cal_sw1 = -1;
-	default_init_param.gpio_cal_sw2 = -1;
+	default_init_param.gpio_sync.number = -1;
+	default_init_param.gpio_cal_sw1.number = -1;
+	default_init_param.gpio_cal_sw2.number = -1;
 #endif
-
-#ifdef LINUX_PLATFORM
-	gpio_init(default_init_param.gpio_resetb);
-#else
-	gpio_init(GPIO_DEVICE_ID);
-	rf_switch_init();
-#endif
-	gpio_direction(default_init_param.gpio_resetb, 1);
-
-	spi_init(SPI_DEVICE_ID, 1, 0);
 
 	if (AD9364_DEVICE)
 		default_init_param.dev_sel = ID_AD9364;
@@ -435,36 +706,52 @@ int main(void)
 #ifdef LINUX_PLATFORM
 	gpio_init(default_init_param.gpio_sync);
 #endif
-	gpio_direction(default_init_param.gpio_sync, 1);
-	default_init_param.id_no = 1;
-	default_init_param.gpio_resetb = GPIO_RESET_PIN_2;
+	default_init_param.id_no = SPI_CS_2;
+	default_init_param.gpio_resetb.number = GPIO_RESET_PIN_2;
 #ifdef LINUX_PLATFORM
 	gpio_init(default_init_param.gpio_resetb);
 #endif
-	default_init_param.gpio_sync = -1;
-	default_init_param.gpio_cal_sw1 = -1;
-	default_init_param.gpio_cal_sw2 = -1;
+	default_init_param.gpio_sync.number = -1;
+	default_init_param.gpio_cal_sw1.number = -1;
+	default_init_param.gpio_cal_sw2.number = -1;
 	default_init_param.rx_synthesizer_frequency_hz = 2300000000UL;
 	default_init_param.tx_synthesizer_frequency_hz = 2300000000UL;
-	gpio_direction(default_init_param.gpio_resetb, 1);
+
+	rx_adc_init.base = AD9361_RX_1_BASEADDR;
+	tx_dac_init.base = AD9361_TX_1_BASEADDR;
+
 	ad9361_init(&ad9361_phy_b, &default_init_param);
 
 	ad9361_set_tx_fir_config(ad9361_phy_b, tx_fir_config);
 	ad9361_set_rx_fir_config(ad9361_phy_b, rx_fir_config);
 #endif
-
+	status = axi_dmac_init(&tx_dmac, &tx_dmac_init);
+	if (status < 0) {
+		printf("axi_dmac_init tx init error: %"PRIi32"\n", status);
+		return status;
+	}
+	status = axi_dmac_init(&rx_dmac, &rx_dmac_init);
+	if (status < 0) {
+		printf("axi_dmac_init rx init error: %"PRIi32"\n", status);
+		return status;
+	}
 #ifndef AXI_ADC_NOT_PRESENT
 #if defined XILINX_PLATFORM || defined LINUX_PLATFORM || defined ALTERA_PLATFORM
 #ifdef DAC_DMA_EXAMPLE
 #ifdef FMCOMMS5
-	dac_init(ad9361_phy_b, DATA_SEL_DMA, 0);
+	axi_dac_init(&ad9361_phy->tx_dac, &tx_dac_init);
+	axi_dac_set_datasel(ad9361_phy_b->tx_dac, -1, AXI_DAC_DATA_SEL_DMA);
 #endif
-	dac_init(ad9361_phy, DATA_SEL_DMA, 1);
+	axi_dac_init(&ad9361_phy->tx_dac, &tx_dac_init);
+	axi_dac_set_datasel(ad9361_phy->tx_dac, -1, AXI_DAC_DATA_SEL_DDS);
+	axi_dac_set_sine_lut(ad9361_phy->tx_dac, DAC_DDR_BASEADDR);
 #else
 #ifdef FMCOMMS5
-	dac_init(ad9361_phy_b, DATA_SEL_DDS, 0);
+	axi_dac_init(&ad9361_phy_b->tx_dac, &tx_dac_init);
+	axi_dac_set_datasel(ad9361_phy_b->tx_dac, -1, AXI_DAC_DATA_SEL_DDS);
 #endif
-	dac_init(ad9361_phy, DATA_SEL_DDS, 1);
+	axi_dac_init(&ad9361_phy->tx_dac, &tx_dac_init);
+	axi_dac_set_datasel(ad9361_phy->tx_dac, -1, AXI_DAC_DATA_SEL_DDS);
 #endif
 #endif
 #endif
@@ -475,23 +762,270 @@ int main(void)
 
 #ifndef AXI_ADC_NOT_PRESENT
 #if (defined XILINX_PLATFORM || defined ALTERA_PLATFORM) && \
-	(defined ADC_DMA_EXAMPLE || defined ADC_DMA_IRQ_EXAMPLE)
-    // NOTE: To prevent unwanted data loss, it's recommended to invalidate
-    // cache after each adc_capture() call, keeping in mind that the
-    // size of the capture and the start address must be alinged to the size
-    // of the cache line.
+	(defined ADC_DMA_EXAMPLE)
+	uint32_t samples = 16384;
+#if (defined ADC_DMA_IRQ_EXAMPLE)
+	/**
+	 * Xilinx platform dependent initialization for IRQ.
+	 */
+	struct xil_irq_init_param xil_irq_init_par = {
+		.type = IRQ_PS,
+	};
+
+	/**
+	 * IRQ initial configuration.
+	 */
+	struct irq_init_param irq_init_param = {
+		.irq_ctrl_id = INTC_DEVICE_ID,
+		.extra = &xil_irq_init_par,
+	};
+
+	/**
+	 * IRQ instance.
+	 */
+	struct irq_ctrl_desc *irq_desc;
+
+	status = irq_ctrl_init(&irq_desc, &irq_init_param);
+	if(status < 0)
+		return status;
+
+	status = irq_global_enable(irq_desc);
+	if (status < 0)
+		return status;
+
+	struct callback_desc rx_dmac_callback = {
+		.ctx = rx_dmac,
+		.callback = axi_dmac_default_isr,
+		.config = NULL
+	};
+
+	status = irq_register_callback(irq_desc,
+				       XPAR_FABRIC_AXI_AD9361_ADC_DMA_IRQ_INTR, &rx_dmac_callback);
+	if(status < 0)
+		return status;
+
+	status = irq_trigger_level_set(irq_desc,
+				       XPAR_FABRIC_AXI_AD9361_ADC_DMA_IRQ_INTR, IRQ_LEVEL_HIGH);
+	if(status < 0)
+		return status;
+
+	status = irq_enable(irq_desc, XPAR_FABRIC_AXI_AD9361_ADC_DMA_IRQ_INTR);
+	if(status < 0)
+		return status;
+
+	samples = 2097150;
+#endif
+	// NOTE: To prevent unwanted data loss, it's recommended to invalidate
+	// cache after each adc_capture() call, keeping in mind that the
+	// size of the capture and the start address must be alinged to the size
+	// of the cache line.
 	mdelay(1000);
-	adc_capture(16384, ADC_DDR_BASEADDR);
+
+#ifdef DAC_DMA_EXAMPLE
+	struct callback_desc tx_dmac_callback = {
+		.ctx = tx_dmac,
+		.callback = axi_dmac_default_isr,
+		.config = NULL
+	};
+
+	status = irq_register_callback(irq_desc,
+				       XPAR_FABRIC_AXI_AD9361_DAC_DMA_IRQ_INTR, &tx_dmac_callback);
+	if(status < 0)
+		return status;
+
+	status = irq_enable(irq_desc, XPAR_FABRIC_AXI_AD9361_DAC_DMA_IRQ_INTR);
+	if(status < 0)
+		return status;
+
+	axi_dmac_transfer_nonblocking(tx_dmac, DAC_DDR_BASEADDR, samples * 16);
+#endif
+	axi_dmac_transfer(rx_dmac, ADC_DDR_BASEADDR, samples * 16);
 #ifdef XILINX_PLATFORM
 #ifdef FMCOMMS5
-	Xil_DCacheInvalidateRange(ADC_DDR_BASEADDR, 16384 * 16);
+	Xil_DCacheInvalidateRange(ADC_DDR_BASEADDR, samples * 16);
 #else
 	Xil_DCacheInvalidateRange(ADC_DDR_BASEADDR,
-			ad9361_phy->pdata->rx2tx2 ? 16384 * 8 : 16384 * 4);
+				  ad9361_phy->pdata->rx2tx2 ? samples * 8 : samples * 4);
 #endif
 #endif
 #endif
 #endif
+
+#ifdef IIO_SUPPORT
+
+	/**
+	 * iio application configurations.
+	 */
+	struct iio_init_param iio_init_par;
+
+	/**
+	 * iio axi adc configurations.
+	 */
+	struct iio_axi_adc_init_param iio_axi_adc_init_par;
+
+	/**
+	 * iio axi dac configurations.
+	 */
+	struct iio_axi_dac_init_param iio_axi_dac_init_par;
+
+	/**
+	 * iio ad9361 configurations.
+	 */
+	struct iio_ad9361_init_param iio_ad9361_init_param;
+
+
+	/**
+	 * iio application instance descriptor.
+	 */
+	struct iio_desc *iio_app_desc;
+
+	/**
+	 * iio instance descriptor.
+	 */
+	struct iio_axi_adc_desc *iio_axi_adc_desc;
+
+	/**
+	 * iio instance descriptor.
+	 */
+	struct iio_axi_dac_desc *iio_axi_dac_desc;
+
+	/**
+	 * iio ad9361 instance descriptor.
+	 */
+	struct iio_ad9361_desc *iio_ad9361_desc;
+
+	/**
+	 * Xilinx platform dependent initialization for IRQ.
+	 */
+	struct xil_irq_init_param xil_irq_init_par = {
+		.type = IRQ_PS,
+	};
+
+	/**
+	 * IRQ initial configuration.
+	 */
+	struct irq_init_param irq_init_param = {
+		.irq_ctrl_id = INTC_DEVICE_ID,
+		.extra = &xil_irq_init_par,
+	};
+
+	/**
+	 * iio devices corresponding to every device.
+	 */
+	struct iio_device *adc_dev_desc, *dac_dev_desc, *ad9361_dev_desc;
+
+	/**
+	 * IRQ instance.
+	 */
+	struct irq_ctrl_desc *irq_desc;
+
+	/**
+	 * Xilinx platform dependent initialization for UART.
+	 */
+	struct xil_uart_init_param xil_uart_init_par;
+
+	/**
+	 * Initialization for UART.
+	 */
+	struct uart_init_param uart_init_par;
+	struct uart_desc *uart_desc;
+
+	status = irq_ctrl_init(&irq_desc, &irq_init_param);
+	if(status < 0)
+		return status;
+
+	xil_uart_init_par = (struct xil_uart_init_param) {
+		.type = UART_PS,
+		.irq_id = UART_IRQ_ID,
+		.irq_desc = irq_desc,
+	};
+
+	uart_init_par = (struct uart_init_param) {
+		.baud_rate = 921600,
+		.device_id = UART_DEVICE_ID,
+		.extra = &xil_uart_init_par,
+	};
+
+	status = irq_global_enable(irq_desc);
+	if (status < 0)
+		return status;
+
+	status = axi_dmac_init(&tx_dmac, &tx_dmac_init);
+	if(status < 0)
+		return status;
+
+	status = uart_init(&uart_desc, &uart_init_par);
+	if (status < 0)
+		return status;
+
+	iio_init_par.phy_type = USE_UART;
+	iio_init_par.uart_desc = uart_desc;
+	status = iio_init(&iio_app_desc, &iio_init_par);
+	if(status < 0)
+		return status;
+
+	iio_axi_adc_init_par = (struct iio_axi_adc_init_param) {
+		.rx_adc = ad9361_phy->rx_adc,
+		.rx_dmac = rx_dmac,
+#ifndef PLATFORM_MB
+		.dcache_invalidate_range = (void (*)(uint32_t,
+						     uint32_t))Xil_DCacheInvalidateRange
+#endif
+	};
+
+	status = iio_axi_adc_init(&iio_axi_adc_desc, &iio_axi_adc_init_par);
+	if(status < 0)
+		return status;
+	iio_axi_adc_get_dev_descriptor(iio_axi_adc_desc, &adc_dev_desc);
+	struct iio_data_buffer read_buff = {
+		.buff = (void *)ADC_DDR_BASEADDR,
+		.size = 0xFFFFFFFF,
+	};
+	status = iio_register(iio_app_desc, adc_dev_desc, "cf-ad9361-lpc",
+			      iio_axi_adc_desc, &read_buff, NULL);
+	if (status < 0)
+		return status;
+
+	iio_axi_dac_init_par = (struct iio_axi_dac_init_param) {
+		.tx_dac = ad9361_phy->tx_dac,
+		.tx_dmac = tx_dmac,
+#ifndef PLATFORM_MB
+		.dcache_flush_range = (void (*)(uint32_t, uint32_t))Xil_DCacheFlushRange,
+#endif
+	};
+
+	status = iio_axi_dac_init(&iio_axi_dac_desc, &iio_axi_dac_init_par);
+	if (status < 0)
+		return status;
+	iio_axi_dac_get_dev_descriptor(iio_axi_dac_desc, &dac_dev_desc);
+
+	struct iio_data_buffer write_buff = {
+		.buff = (void *)DAC_DDR_BASEADDR,
+		.size = 0xFFFFFFFF,
+	};
+	status = iio_register(iio_app_desc, dac_dev_desc, "cf-ad9361-dds-core-lpc",
+			      iio_axi_dac_desc, NULL, &write_buff);
+	if (status < 0)
+		return status;
+
+	iio_ad9361_init_param = (struct iio_ad9361_init_param) {
+		.ad9361_phy = ad9361_phy,
+	};
+
+	status = iio_ad9361_init(&iio_ad9361_desc, &iio_ad9361_init_param);
+	if (status < 0)
+		return status;
+	iio_ad9361_get_dev_descriptor(iio_ad9361_desc, &ad9361_dev_desc);
+	status = iio_register(iio_app_desc, ad9361_dev_desc, "ad9361-phy", ad9361_phy,
+			      NULL, NULL);
+	if (status < 0)
+		return status;
+
+	do {
+		status = iio_step(iio_app_desc);
+	} while (true);
+
+#endif // IIO_SUPPORT
 
 #ifdef CONSOLE_COMMANDS
 	get_help(NULL, 0);
@@ -520,93 +1054,104 @@ int main(void)
 		}
 	}
 #endif
-
 	printf("Done.\n");
 
 #ifdef TDD_SWITCH_STATE_EXAMPLE
 	uint32_t ensm_mode;
+	struct gpio_desc 	*gpio_enable_pin;
+	struct gpio_desc 	*gpio_txnrx_pin;
 	if (!ad9361_phy->pdata->fdd) {
 		if (ad9361_phy->pdata->ensm_pin_ctrl) {
-			gpio_direction(GPIO_ENABLE_PIN, 1);
-			gpio_direction(GPIO_TXNRX_PIN, 1);
-			gpio_set_value(GPIO_ENABLE_PIN, 0);
-			gpio_set_value(GPIO_TXNRX_PIN, 0);
+			gpio_init.number = GPIO_ENABLE_PIN;
+			status = gpio_get(&gpio_enable_pin, gpio_init);
+			if (status != SUCCESS) {
+				printf("gpio_get() error: %"PRIi32"\n", status);
+				return status;
+			}
+			gpio_direction_output(gpio_enable_pin, 1);
+			gpio_init.number = GPIO_TXNRX_PIN;
+			status = gpio_get(&gpio_txnrx_pin, gpio_init);
+			if (status != SUCCESS) {
+				printf("gpio_get() error: %"PRIi32"\n", status);
+				return status;
+			}
+			gpio_direction_output(gpio_txnrx_pin, 0);
 			udelay(10);
 			ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 			printf("TXNRX control - Alert: %s\n",
-					ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+			       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 			mdelay(1000);
 
 			if (ad9361_phy->pdata->ensm_pin_pulse_mode) {
 				while(1) {
-					gpio_set_value(GPIO_TXNRX_PIN, 0);
+					gpio_set_value(gpio_txnrx_pin, 0);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 1);
+					gpio_set_value(gpio_enable_pin, 1);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 0);
+					gpio_set_value(gpio_enable_pin, 0);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX Pulse control - RX: %s\n",
-							ensm_mode == ENSM_MODE_RX ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_RX ? "OK" : "Error");
 					mdelay(1000);
 
-					gpio_set_value(GPIO_ENABLE_PIN, 1);
+					gpio_set_value(gpio_enable_pin, 1);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 0);
+					gpio_set_value(gpio_enable_pin, 0);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX Pulse control - Alert: %s\n",
-							ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 					mdelay(1000);
 
-					gpio_set_value(GPIO_TXNRX_PIN, 1);
+					gpio_set_value(gpio_txnrx_pin, 1);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 1);
+					gpio_set_value(gpio_enable_pin, 1);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 0);
+					gpio_set_value(gpio_enable_pin, 0);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX Pulse control - TX: %s\n",
-							ensm_mode == ENSM_MODE_TX ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_TX ? "OK" : "Error");
 					mdelay(1000);
 
-					gpio_set_value(GPIO_ENABLE_PIN, 1);
+					gpio_set_value(gpio_enable_pin, 1);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 0);
+					gpio_set_value(gpio_enable_pin, 0);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX Pulse control - Alert: %s\n",
-							ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 					mdelay(1000);
 				}
 			} else {
 				while(1) {
-					gpio_set_value(GPIO_TXNRX_PIN, 0);
+					gpio_set_value(gpio_txnrx_pin, 0);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 1);
+					gpio_set_value(gpio_enable_pin, 1);
 					udelay(10);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX control - RX: %s\n",
-							ensm_mode == ENSM_MODE_RX ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_RX ? "OK" : "Error");
 					mdelay(1000);
 
-					gpio_set_value(GPIO_ENABLE_PIN, 0);
+					gpio_set_value(gpio_enable_pin, 0);
 					udelay(10);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX control - Alert: %s\n",
-							ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 					mdelay(1000);
 
-					gpio_set_value(GPIO_TXNRX_PIN, 1);
+					gpio_set_value(gpio_txnrx_pin, 1);
 					udelay(10);
-					gpio_set_value(GPIO_ENABLE_PIN, 1);
+					gpio_set_value(gpio_enable_pin, 1);
 					udelay(10);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX control - TX: %s\n",
-							ensm_mode == ENSM_MODE_TX ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_TX ? "OK" : "Error");
 					mdelay(1000);
 
-					gpio_set_value(GPIO_ENABLE_PIN, 0);
+					gpio_set_value(gpio_enable_pin, 0);
 					udelay(10);
 					ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 					printf("TXNRX control - Alert: %s\n",
-							ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+					       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 					mdelay(1000);
 				}
 			}
@@ -615,29 +1160,34 @@ int main(void)
 				ad9361_set_en_state_machine_mode(ad9361_phy, ENSM_MODE_RX);
 				ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 				printf("SPI control - RX: %s\n",
-						ensm_mode == ENSM_MODE_RX ? "OK" : "Error");
+				       ensm_mode == ENSM_MODE_RX ? "OK" : "Error");
 				mdelay(1000);
 
 				ad9361_set_en_state_machine_mode(ad9361_phy, ENSM_MODE_ALERT);
 				ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 				printf("SPI control - Alert: %s\n",
-						ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+				       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 				mdelay(1000);
 
 				ad9361_set_en_state_machine_mode(ad9361_phy, ENSM_MODE_TX);
 				ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 				printf("SPI control - TX: %s\n",
-						ensm_mode == ENSM_MODE_TX ? "OK" : "Error");
+				       ensm_mode == ENSM_MODE_TX ? "OK" : "Error");
 				mdelay(1000);
 
 				ad9361_set_en_state_machine_mode(ad9361_phy, ENSM_MODE_ALERT);
 				ad9361_get_en_state_machine_mode(ad9361_phy, &ensm_mode);
 				printf("SPI control - Alert: %s\n",
-						ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
+				       ensm_mode == ENSM_MODE_ALERT ? "OK" : "Error");
 				mdelay(1000);
 			}
 		}
 	}
+#endif
+
+	ad9361_remove(ad9361_phy);
+#ifdef FMCOMMS5
+	ad9361_remove(ad9361_phy_b);
 #endif
 
 #ifdef XILINX_PLATFORM

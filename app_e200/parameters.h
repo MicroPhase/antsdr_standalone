@@ -1,5 +1,5 @@
 /***************************************************************************//**
- *   @file   parameters.h
+ *   @file   ad9361/src/parameters.h
  *   @brief  Parameters Definitions.
  *   @author DBogdan (dragos.bogdan@analog.com)
 ********************************************************************************
@@ -39,6 +39,7 @@
 #ifndef __PARAMETERS_H__
 #define __PARAMETERS_H__
 
+#ifdef XILINX_PLATFORM
 /******************************************************************************/
 /***************************** Include Files **********************************/
 /******************************************************************************/
@@ -80,6 +81,9 @@
 #define ADC_DDR_BASEADDR			XPAR_DDR_MEM_BASEADDR + 0x800000
 #define DAC_DDR_BASEADDR			XPAR_DDR_MEM_BASEADDR + 0xA000000
 
+#define UART_DEVICE_ID			XPAR_XUARTPS_0_DEVICE_ID
+#define INTC_DEVICE_ID				XPAR_SCUGIC_SINGLE_DEVICE_ID
+
 #ifdef XPS_BOARD_ZCU102
 #define GPIO_DEVICE_ID				XPAR_PSU_GPIO_0_DEVICE_ID
 #define GPIO_RESET_PIN				124
@@ -87,13 +91,13 @@
 #define GPIO_ENABLE_PIN				125
 #define GPIO_TXNRX_PIN        		126
 #define SPI_DEVICE_ID				XPAR_PSU_SPI_0_DEVICE_ID
-#define GIC_DEVICE_ID				XPAR_PSU_ACPU_GIC_DEVICE_ID
+#define UART_IRQ_ID				XPAR_XUARTPS_0_INTR
 #else
 #define GPIO_DEVICE_ID				XPAR_PS7_GPIO_0_DEVICE_ID
-#define GPIO_RESET_PIN				100
-#define GPIO_SYNC_PIN				99
-#define GPIO_ENABLE_PIN				101
-#define GPIO_TXNRX_PIN        		102
+#define GPIO_RESET_PIN				68
+#define GPIO_SYNC_PIN				67
+#define GPIO_ENABLE_PIN				69
+#define GPIO_TXNRX_PIN        		70
 #define SPI_DEVICE_ID				XPAR_PS7_SPI_0_DEVICE_ID
 #define GIC_DEVICE_ID				XPAR_PS7_SCUGIC_0_DEVICE_ID
 #endif
@@ -103,22 +107,10 @@
 #define GPIO_RESET_PIN_2			113
 #define GPIO_CAL_SW1_PIN			107
 #define GPIO_CAL_SW2_PIN			108
-#define GPIO_CTL0_PIN				94
-#define GPIO_CTL1_PIN				95
-#define GPIO_CTL2_PIN				96
-#define GPIO_CTL3_PIN				97
-
-/* RF switch define */
-#define GPIO_RX1_BAND_SEL_H				54
-#define GPIO_RX1_BAND_SEL_L				55
-#define GPIO_TX1_BAND_SEL_H				56
-#define GPIO_TX1_BAND_SEL_L				57
-#define GPIO_RX2_BAND_SEL_H				58
-#define GPIO_RX2_BAND_SEL_L				59
-#define GPIO_TX2_BAND_SEL_H				60
-#define GPIO_TX2_BAND_SEL_L				61
-
-
+#define GPIO_CTL0_PIN				62
+#define GPIO_CTL1_PIN				63
+#define GPIO_CTL2_PIN				64
+#define GPIO_CTL3_PIN				65
 
 #else
 #ifdef XPAR_DDR3_SDRAM_S_AXI_BASEADDR
@@ -128,6 +120,11 @@
 #define ADC_DDR_BASEADDR			XPAR_AXI_DDR_CNTRL_BASEADDR + 0x800000
 #define DAC_DDR_BASEADDR			XPAR_AXI_DDR_CNTRL_BASEADDR + 0xA000000
 #endif
+
+#define UART_DEVICE_ID                          XPAR_AXI_UART_DEVICE_ID
+#define INTC_DEVICE_ID				XPAR_INTC_SINGLE_DEVICE_ID
+#define UART_IRQ_ID                             XPAR_AXI_INTC_AXI_UART_INTERRUPT_INTR
+
 #define GPIO_DEVICE_ID				0
 #define GPIO_RESET_PIN				46
 #ifdef XPAR_AXI_SPI_0_DEVICE_ID
@@ -135,6 +132,25 @@
 #else
 #define SPI_DEVICE_ID				XPAR_SPI_0_DEVICE_ID
 #endif
+#endif
+
+#define SPI_CS                  0
+#define SPI_CS_2                1
+
+#define RX_CORE_BASEADDR	AD9361_RX_0_BASEADDR
+#define TX_CORE_BASEADDR	AD9361_TX_0_BASEADDR
+#endif
+
+#if defined LINUX_PLATFORM || defined GENERIC_PLATFORM
+#define RX_CORE_BASEADDR			0
+#define TX_CORE_BASEADDR			1
+#define CF_AD9361_RX_DMA_BASEADDR	2
+#define CF_AD9361_TX_DMA_BASEADDR	3
+
+#define SPI_DEVICE_ID		0
+#define SPI_CS			0
+
+#define GPIO_RESET_PIN	1006
 #endif
 
 #endif // __PARAMETERS_H__

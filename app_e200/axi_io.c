@@ -1,9 +1,9 @@
 /***************************************************************************//**
- *   @file   config.h
- *   @brief  Config file of AD9361/API Driver.
- *   @author DBogdan (dragos.bogdan@analog.com)
+ *   @file   xilinx/axi_io.c
+ *   @brief  Implementation of Xilinx AXI IO.
+ *   @author Antoniu Miclaus (antoniu.miclaus@analog.com)
 ********************************************************************************
- * Copyright 2015(c) Analog Devices, Inc.
+ * Copyright 2019(c) Analog Devices, Inc.
  *
  * All rights reserved.
  *
@@ -36,36 +36,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
-#ifndef CONFIG_H_
-#define CONFIG_H_
 
-#define HAVE_VERBOSE_MESSAGES /* Recommended during development prints errors and warnings */
-//#define HAVE_DEBUG_MESSAGES /* For Debug purposes only */
+/******************************************************************************/
+/***************************** Include Files **********************************/
+/******************************************************************************/
 
-/*
- * In case memory footprint is a concern these options allow
- * to disable unused functionality which may free up a few kb
+#include <xil_io.h>
+#include "error.h"
+#include "axi_io.h"
+
+/******************************************************************************/
+/************************ Functions Definitions *******************************/
+/******************************************************************************/
+
+/**
+ * @brief AXI IO Xilinx specific read function.
+ * @param base - Base address
+ * @param offset - Address offset
+ * @param data - variable where returned data is stored
+ * @return SUCCESS in case of success, FAILURE otherwise.
  */
+int32_t axi_io_read(uint32_t base, uint32_t offset, uint32_t *data)
+{
+	*data = Xil_In32(base + offset);
 
-//#define ANTSDR_E310
+	return SUCCESS;
+}
 
-#define HAVE_SPLIT_GAIN_TABLE	1 /* only set to 0 in case split_gain_table_mode_enable = 0*/
-#define HAVE_TDD_SYNTH_TABLE	1 /* only set to 0 in case split_gain_table_mode_enable = 0*/
+/**
+ * @brief AXI IO Xilinx specific write function.
+ * @param base - Base address
+ * @param offset - Address offset
+ * @param data - data to be written.
+ * @return SUCCESS in case of success, FAILURE otherwise.
+ */
+int32_t axi_io_write(uint32_t base, uint32_t offset, uint32_t data)
+{
+	Xil_Out32(base + offset, data);
 
-#define AD9361_DEVICE			1 /* set it 1 if AD9361 device is used, 0 otherwise */
-#define AD9364_DEVICE			0 /* set it 1 if AD9364 device is used, 0 otherwise */
-#define AD9363A_DEVICE			0 /* set it 1 if AD9363A device is used, 0 otherwise */
+	return SUCCESS;
+}
 
-#define CONSOLE_COMMANDS
-#define XILINX_PLATFORM
-//#define ALTERA_PLATFORM
-//#define FMCOMMS5
-#define ADI_RF_SOM
-//#define ADI_RF_SOM_CMOS
-#define ADC_DMA_EXAMPLE
-//#define ADC_DMA_IRQ_EXAMPLE
-#define DAC_DMA_EXAMPLE
-//#define AXI_ADC_NOT_PRESENT
-//#define TDD_SWITCH_STATE_EXAMPLE
-
-#endif

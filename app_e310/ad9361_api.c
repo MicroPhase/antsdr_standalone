@@ -42,12 +42,15 @@
 /******************************************************************************/
 #include "ad9361.h"
 #include "ad9361_api.h"
-#include "platform.h"
+#include "delay.h"
+#include "spi.h"
 #include "util.h"
-#include "config.h"
+#include "app_config.h"
 #include <string.h>
-
 #ifndef AXI_ADC_NOT_PRESENT
+#include "axi_adc_core.h"
+#include "axi_dac_core.h"
+
 /******************************************************************************/
 /************************ Constants Definitions *******************************/
 /******************************************************************************/
@@ -61,15 +64,17 @@ static struct axiadc_chip_info axiadc_chip_info_tbl[] = {
 		2
 	},
 };
+
+#define ADI_REG_VERSION			0x0000
 #endif
 
 extern struct gain_table_info ad9361_adi_gt_info[];
 
 /**
  * Initialize the AD9361 part.
+ * @param ad9361_phy The AD9361 device structure.
  * @param init_param The structure that contains the AD9361 initial parameters.
- * @return A structure that contains the AD9361 current state in case of
- *         success, negative error code otherwise.
+ * @return 0 in case of success, negative error code otherwise.
  *
  * Note: This function will/may affect the data path.
  */
@@ -83,11 +88,6 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 
 	phy = (struct ad9361_rf_phy *)zmalloc(sizeof(*phy));
 	if (!phy) {
-		return -ENOMEM;
-	}
-
-	phy->spi = (struct spi_device *)zmalloc(sizeof(*phy->spi));
-	if (!phy->spi) {
 		return -ENOMEM;
 	}
 
@@ -117,7 +117,6 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 	phy->dev_sel = init_param->dev_sel;
 
 	/* Identification number */
-	phy->spi->id_no = init_param->id_no;
 	phy->id_no = init_param->id_no;
 
 	/* Reference Clock */
@@ -220,6 +219,8 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 		init_param->gc_lmt_overload_low_thresh;
 	phy->pdata->gain_ctrl.low_power_thresh = init_param->gc_low_power_thresh;
 	phy->pdata->gain_ctrl.max_dig_gain = init_param->gc_max_dig_gain;
+	phy->pdata->gain_ctrl.use_rx_fir_out_for_dec_pwr_meas =
+		init_param->gc_use_rx_fir_out_for_dec_pwr_meas_enable;
 
 	/* Gain MGC Control */
 	phy->pdata->gain_ctrl.mgc_dec_gain_step = init_param->mgc_dec_gain_step;
@@ -328,6 +329,8 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 		init_param->fagc_rst_gla_if_en_agc_pulled_high_mode;
 	phy->pdata->gain_ctrl.f_agc_power_measurement_duration_in_state5 =
 		init_param->fagc_power_measurement_duration_in_state5;
+	phy->pdata->gain_ctrl.f_agc_large_overload_inc_steps =
+		init_param->fagc_large_overload_inc_steps;
 
 	/* RSSI Control */
 	phy->pdata->rssi_ctrl.rssi_delay = init_param->rssi_delay;
@@ -432,6 +435,10 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 	phy->pdata->rx1rx2_phase_inversion_en = init_param->rx1rx2_phase_inversion_en;
 
 	/* GPO Control */
+	phy->pdata->gpo_ctrl.gpo_manual_mode_en =
+		init_param->gpo_manual_mode_enable;
+	phy->pdata->gpo_ctrl.gpo_manual_mode_enable_mask =
+		init_param->gpo_manual_mode_enable_mask;
 	phy->pdata->gpo_ctrl.gpo0_inactive_state_high_en =
 		init_param->gpo0_inactive_state_high_enable;
 	phy->pdata->gpo_ctrl.gpo1_inactive_state_high_en =
@@ -476,11 +483,35 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 	phy->pdata->txmon_ctrl.tx2_mon_lo_cm = init_param->tx2_mon_lo_cm;
 
 	phy->pdata->debug_mode = true;
-	phy->pdata->gpio_resetb = init_param->gpio_resetb;
+
+	gpio_get(&phy->gpio_desc_resetb, &init_param->gpio_resetb);
 	/* Optional: next three GPIOs are used for MCS synchronization */
-	phy->pdata->gpio_sync = init_param->gpio_sync;
-	phy->pdata->gpio_cal_sw1 = init_param->gpio_cal_sw1;
-	phy->pdata->gpio_cal_sw2 = init_param->gpio_cal_sw2;
+	gpio_get_optional(&phy->gpio_desc_sync, &init_param->gpio_sync);
+	gpio_get_optional(&phy->gpio_desc_cal_sw1, &init_param->gpio_cal_sw1);
+	gpio_get_optional(&phy->gpio_desc_cal_sw2, &init_param->gpio_cal_sw2);
+
+	gpio_get(&phy->gpio_desc_rx1_ctrl_h, &init_param->gpio_rx1_ctrl_h);
+	gpio_get(&phy->gpio_desc_rx1_ctrl_l, &init_param->gpio_rx1_ctrl_l);
+	gpio_get(&phy->gpio_desc_tx1_ctrl_h, &init_param->gpio_tx1_ctrl_h);
+	gpio_get(&phy->gpio_desc_tx1_ctrl_l, &init_param->gpio_tx1_ctrl_l);
+	gpio_get(&phy->gpio_desc_rx2_ctrl_h, &init_param->gpio_rx2_ctrl_h);
+	gpio_get(&phy->gpio_desc_rx2_ctrl_l, &init_param->gpio_rx2_ctrl_l);
+	gpio_get(&phy->gpio_desc_tx2_ctrl_h, &init_param->gpio_tx2_ctrl_h);
+	gpio_get(&phy->gpio_desc_tx2_ctrl_l, &init_param->gpio_tx2_ctrl_l);
+
+
+	gpio_direction_output(phy->gpio_desc_resetb, 0);
+
+	gpio_direction_output(phy->gpio_desc_rx1_ctrl_h, 0);
+	gpio_direction_output(phy->gpio_desc_rx1_ctrl_l, 0);
+	gpio_direction_output(phy->gpio_desc_tx1_ctrl_h, 0);
+	gpio_direction_output(phy->gpio_desc_tx1_ctrl_l, 0);
+	gpio_direction_output(phy->gpio_desc_rx2_ctrl_h, 0);
+	gpio_direction_output(phy->gpio_desc_rx2_ctrl_l, 0);
+	gpio_direction_output(phy->gpio_desc_tx2_ctrl_h, 0);
+	gpio_direction_output(phy->gpio_desc_tx2_ctrl_l, 0);
+
+	spi_init(&phy->spi, &init_param->spi_param);
 
 	phy->pdata->port_ctrl.digital_io_ctrl = 0;
 	phy->pdata->port_ctrl.lvds_invert[0] = init_param->lvds_invert1_control;
@@ -531,24 +562,21 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 	phy->ad9361_rfpll_ext_round_rate = init_param->ad9361_rfpll_ext_round_rate;
 	phy->ad9361_rfpll_ext_set_rate = init_param->ad9361_rfpll_ext_set_rate;
 
-	ret = register_clocks(phy);
+	ret = ad9361_register_clocks(phy);
 	if (ret < 0)
 		goto out;
-
-#ifndef AXI_ADC_NOT_PRESENT
-	axiadc_init(phy);
-	phy->adc_state->pcore_version = axiadc_read(phy->adc_state, ADI_REG_VERSION);
-#endif
 
 	ret = ad9361_setup(phy);
 	if (ret < 0)
-		goto out;
+		goto out_clk;
 
 #ifndef AXI_ADC_NOT_PRESENT
+	axi_adc_init(&phy->rx_adc, init_param->rx_adc_init);
+	axi_adc_read(phy->rx_adc, ADI_REG_VERSION, &phy->adc_state->pcore_version);
 	/* platform specific wrapper to call ad9361_post_setup() */
-	ret = axiadc_post_setup(phy);
+	ret = ad9361_post_setup(phy);
 	if (ret < 0)
-		goto out;
+		goto out_clk;
 #endif
 
 	printf("%s : AD936x Rev %d successfully initialized\n", __func__, (int)rev);
@@ -557,8 +585,9 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 
 	return 0;
 
+out_clk:
+	ad9361_unregister_clocks(phy);
 out:
-	free(phy->spi);
 #ifndef AXI_ADC_NOT_PRESENT
 	free(phy->adc_conv);
 	free(phy->adc_state);
@@ -569,6 +598,30 @@ out:
 	printf("%s : AD936x initialization error\n", __func__);
 
 	return -ENODEV;
+}
+
+/**
+ * Free the allocated resources.
+ * @param phy The AD9361 current state structure.
+ * @return 0 in case of success, negative error code otherwise.
+ */
+int32_t ad9361_remove(struct ad9361_rf_phy *phy)
+{
+	ad9361_unregister_clocks(phy);
+	spi_remove(phy->spi);
+	gpio_remove(phy->gpio_desc_resetb);
+	gpio_remove(phy->gpio_desc_sync);
+	gpio_remove(phy->gpio_desc_cal_sw1);
+	gpio_remove(phy->gpio_desc_cal_sw2);
+#ifndef AXI_ADC_NOT_PRESENT
+	free(phy->adc_conv);
+	free(phy->adc_state);
+#endif
+	free(phy->clk_refin);
+	free(phy->pdata);
+	free(phy);
+
+	return 0;
 }
 
 /**
@@ -976,7 +1029,7 @@ int32_t ad9361_set_rx_fir_config (struct ad9361_rf_phy *phy,
 /**
  * Get the RX FIR filter configuration.
  * @param phy The AD9361 current state structure.
- * @param tx_ch The selected RX channel (RX1, RX2).
+ * @param rx_ch The selected RX channel (RX1, RX2).
  * 				Accepted values:
  * 				 RX1 (0)
  * 				 RX2 (1)
@@ -1364,7 +1417,7 @@ int32_t ad9361_set_tx_attenuation (struct ad9361_rf_phy *phy,
  * @return 0 in case of success, negative error code otherwise.
  */
 int32_t ad9361_get_tx_attenuation (struct ad9361_rf_phy *phy,
-				   uint8_t ch, uint32_t *attenuation_db)
+				   uint8_t ch, uint32_t *attenuation_mdb)
 {
 	int32_t ret;
 
@@ -1374,7 +1427,7 @@ int32_t ad9361_get_tx_attenuation (struct ad9361_rf_phy *phy,
 
 	if(ret < 0)
 		return ret;
-	*attenuation_db = ret;
+	*attenuation_mdb = ret;
 
 	return 0;
 }
@@ -1882,7 +1935,7 @@ int32_t ad9361_get_trx_path_clks(struct ad9361_rf_phy *phy,
  * @param phy The AD9361 state structure.
  * Note: This function also resets the device, some additional
  *       configurations might be necessary
- * @param ch_mode Number of channels mode (MODE_1x1, MODE_2x2).
+ * @param no_ch_mode Number of channels mode (MODE_1x1, MODE_2x2).
  * 				  Accepted values:
  * 				   MODE_1x1 (1)
  * 				   MODE_2x2 (2)
@@ -1954,13 +2007,10 @@ int32_t ad9361_set_no_ch_mode(struct ad9361_rf_phy *phy, uint8_t no_ch_mode)
 	phy->clks[TX_RFPLL]->rate = ad9361_rfpll_recalc_rate(
 					    phy->ref_clk_scale[TX_RFPLL]);
 
-#ifndef AXI_ADC_NOT_PRESENT
-	axiadc_init(phy);
-#endif
 	ad9361_setup(phy);
 #ifndef AXI_ADC_NOT_PRESENT
 	/* platform specific wrapper to call ad9361_post_setup() */
-	axiadc_post_setup(phy);
+	ad9361_post_setup(phy);
 #endif
 
 	return 0;
