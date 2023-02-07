@@ -42,7 +42,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include <stdint.h>
-#include "gpio.h"
+#include "no_os_gpio.h"
 #include "common.h"
 
 /******************************************************************************/
@@ -2831,9 +2831,9 @@
  * For more information see here: https://ez.analog.com/docs/DOC-12763
  */
 
-#define MIN_ADC_CLK			25000000UL /* 25 MHz */
+#define MIN_ADC_CLK			25000000U /* 25 MHz */
 //#define MIN_ADC_CLK			(MIN_BBPLL_FREQ / MAX_BBPLL_DIV) /* 11.17MHz */
-#define MAX_ADC_CLK			640000000UL /* 640 MHz */
+#define MAX_ADC_CLK			640000000U /* 640 MHz */
 #define MAX_DAC_CLK			(MAX_ADC_CLK / 2)
 
 /* Associated with outputs of stage */
@@ -3339,18 +3339,17 @@ enum dev_id {
 
 struct ad9361_rf_phy {
 	enum dev_id		dev_sel;
-	uint8_t 		id_no;
-	struct spi_desc 	*spi;
-	struct gpio_desc 	*gpio_desc_resetb;
-	struct gpio_desc 	*gpio_desc_sync;
-	struct gpio_desc 	*gpio_desc_cal_sw1;
-	struct gpio_desc 	*gpio_desc_cal_sw2;
+	struct no_os_spi_desc 	*spi;
+	struct no_os_gpio_desc 	*gpio_desc_resetb;
+	struct no_os_gpio_desc 	*gpio_desc_sync;
+	struct no_os_gpio_desc 	*gpio_desc_cal_sw1;
+	struct no_os_gpio_desc 	*gpio_desc_cal_sw2;
 #ifndef AXI_ADC_NOT_PRESENT
 	struct axi_adc		*rx_adc;
 	struct axi_dac		*tx_dac;
 #endif
-	struct clk 		*clk_refin;
-	struct clk 		*clks[NUM_AD9361_CLKS];
+	struct no_os_clk 		*clk_refin;
+	struct no_os_clk 		*clks[NUM_AD9361_CLKS];
 	struct refclk_scale *ref_clk_scale[NUM_AD9361_CLKS];
 	uint32_t (*ad9361_rfpll_ext_recalc_rate)(struct refclk_scale *clk_priv);
 	int32_t (*ad9361_rfpll_ext_round_rate)(struct refclk_scale *clk_priv,
@@ -3419,7 +3418,7 @@ struct ad9361_rf_phy {
 };
 
 struct refclk_scale {
-	struct spi_desc	*spi;
+	struct no_os_spi_desc	*spi;
 	struct ad9361_rf_phy	*phy;
 	uint32_t			mult;
 	uint32_t			div;
@@ -3441,10 +3440,10 @@ enum debugfs_cmd {
 /******************************************************************************/
 /************************ Functions Declarations ******************************/
 /******************************************************************************/
-int32_t ad9361_spi_readm(struct spi_desc *spi, uint32_t reg,
+int32_t ad9361_spi_readm(struct no_os_spi_desc *spi, uint32_t reg,
 			 uint8_t *rbuf, uint32_t num);
-int32_t ad9361_spi_read(struct spi_desc *spi, uint32_t reg);
-int32_t ad9361_spi_write(struct spi_desc *spi,
+int32_t ad9361_spi_read(struct no_os_spi_desc *spi, uint32_t reg);
+int32_t ad9361_spi_write(struct no_os_spi_desc *spi,
 			 uint32_t reg, uint32_t val);
 int32_t ad9361_reset(struct ad9361_rf_phy *phy);
 int32_t ad9361_register_clocks(struct ad9361_rf_phy *phy);

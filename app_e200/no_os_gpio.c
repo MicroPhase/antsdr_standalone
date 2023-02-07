@@ -1,5 +1,5 @@
 /***************************************************************************//**
- *   @file   gpio.c
+ *   @file   no_os_gpio.c
  *   @brief  Implementation of the GPIO Interface
  *   @author Antoniu Miclaus (antoniu.miclaus@analog.com)
 ********************************************************************************
@@ -38,9 +38,9 @@
 *******************************************************************************/
 
 #include <inttypes.h>
-#include "gpio.h"
+#include "no_os_gpio.h"
 #include <stdlib.h>
-#include "error.h"
+#include "no_os_error.h"
 
 /******************************************************************************/
 /************************ Functions Definitions *******************************/
@@ -50,135 +50,135 @@
  * @brief Obtain the GPIO decriptor.
  * @param desc - The GPIO descriptor.
  * @param param - GPIO Initialization parameters.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_get(struct gpio_desc **desc,
-		 const struct gpio_init_param *param)
+int32_t no_os_gpio_get(struct no_os_gpio_desc **desc,
+		       const struct no_os_gpio_init_param *param)
 {
 	if (!param)
-		return FAILURE;
+		return -1;
 
 	if ((param->platform_ops->gpio_ops_get(desc, param)))
-		return FAILURE;
+		return -1;
 
 	(*desc)->platform_ops = param->platform_ops;
 
-	return SUCCESS;
+	return 0;
 }
 
 /**
  * @brief Get the value of an optional GPIO.
  * @param desc - The GPIO descriptor.
  * @param param - GPIO Initialization parameters.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_get_optional(struct gpio_desc **desc,
-			  const struct gpio_init_param *param)
+int32_t no_os_gpio_get_optional(struct no_os_gpio_desc **desc,
+				const struct no_os_gpio_init_param *param)
 {
 	if (!param || (param->number == -1)) {
 		*desc = NULL;
-		return SUCCESS;
+		return 0;
 	}
 
 	if ((param->platform_ops->gpio_ops_get_optional(desc, param)))
-		return FAILURE;
+		return -1;
 
 	(*desc)->platform_ops = param->platform_ops;
 
-	return SUCCESS;
+	return 0;
 }
 /**
- * @brief Free the resources allocated by gpio_get().
+ * @brief Free the resources allocated by no_os_gpio_get().
  * @param desc - The GPIO descriptor.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_remove(struct gpio_desc *desc)
+int32_t no_os_gpio_remove(struct no_os_gpio_desc *desc)
 {
 	if (desc)
 		return desc->platform_ops->gpio_ops_remove(desc);
 	else
-		return SUCCESS;
+		return 0;
 }
 
 /**
  * @brief Enable the input direction of the specified GPIO.
  * @param desc - The GPIO descriptor.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_direction_input(struct gpio_desc *desc)
+int32_t no_os_gpio_direction_input(struct no_os_gpio_desc *desc)
 {
 	if (desc)
 		return desc->platform_ops->gpio_ops_direction_input(desc);
 	else
-		return SUCCESS;
+		return 0;
 }
 
 /**
  * @brief Enable the output direction of the specified GPIO.
  * @param desc - The GPIO descriptor.
  * @param value - The value.
- *                Example: GPIO_HIGH
- *                         GPIO_LOW
- * @return SUCCESS in case of success, FAILURE otherwise.
+ *                Example: NO_OS_GPIO_HIGH
+ *                         NO_OS_GPIO_LOW
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_direction_output(struct gpio_desc *desc,
-			      uint8_t value)
+int32_t no_os_gpio_direction_output(struct no_os_gpio_desc *desc,
+				    uint8_t value)
 {
 	if (desc)
 		return desc->platform_ops->
-			gpio_ops_direction_output(desc, value);
+		       gpio_ops_direction_output(desc, value);
 	else
-		return SUCCESS;
+		return 0;
 }
 
 /**
  * @brief Get the direction of the specified GPIO.
  * @param desc - The GPIO descriptor.
  * @param direction - The direction.
- *                    Example: GPIO_OUT
- *                             GPIO_IN
- * @return SUCCESS in case of success, FAILURE otherwise.
+ *                    Example: NO_OS_GPIO_OUT
+ *                             NO_OS_GPIO_IN
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_get_direction(struct gpio_desc *desc,
-			   uint8_t *direction)
+int32_t no_os_gpio_get_direction(struct no_os_gpio_desc *desc,
+				 uint8_t *direction)
 {
 	if (desc)
 		return desc->platform_ops->
-			gpio_ops_get_direction(desc, direction);
+		       gpio_ops_get_direction(desc, direction);
 	else
-		return SUCCESS;
+		return 0;
 }
 
 /**
  * @brief Set the value of the specified GPIO.
  * @param desc - The GPIO descriptor.
  * @param value - The value.
- *                Example: GPIO_HIGH
- *                         GPIO_LOW
- * @return SUCCESS in case of success, FAILURE otherwise.
+ *                Example: NO_OS_GPIO_HIGH
+ *                         NO_OS_GPIO_LOW
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_set_value(struct gpio_desc *desc,
-		       uint8_t value)
+int32_t no_os_gpio_set_value(struct no_os_gpio_desc *desc,
+			     uint8_t value)
 {
 	if (desc)
 		return desc->platform_ops->gpio_ops_set_value(desc, value);
 	else
-		return SUCCESS;
+		return 0;
 }
 
 /**
  * @brief Get the value of the specified GPIO.
  * @param desc - The GPIO descriptor.
  * @param value - The value.
- *                Example: GPIO_HIGH
- *                         GPIO_LOW
- * @return SUCCESS in case of success, FAILURE otherwise.
+ *                Example: NO_OS_GPIO_HIGH
+ *                         NO_OS_GPIO_LOW
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t gpio_get_value(struct gpio_desc *desc,
-		       uint8_t *value)
+int32_t no_os_gpio_get_value(struct no_os_gpio_desc *desc,
+			     uint8_t *value)
 {
 	if (desc)
 		return desc->platform_ops->gpio_ops_get_value(desc, value);
 	else
-		return SUCCESS;
+		return 0;
 }

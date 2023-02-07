@@ -41,7 +41,7 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 
-#include "delay.h"
+#include "no_os_delay.h"
 #include <sleep.h>
 
 /******************************************************************************/
@@ -53,12 +53,12 @@
  * @param usecs - Delay in microseconds.
  * @return None.
  */
-void udelay(uint32_t usecs)
+void no_os_udelay(uint32_t usecs)
 {
 #ifdef _XPARAMETERS_PS_H_
 	usleep(usecs);
 #else
-	usleep(usecs / 20);	// FIXME
+	usleep_MB(usecs);
 #endif
 }
 
@@ -67,11 +67,11 @@ void udelay(uint32_t usecs)
  * @param msecs - Delay in miliseconds.
  * @return None.
  */
-void mdelay(uint32_t msecs)
+void no_os_mdelay(uint32_t msecs)
 {
 #ifdef _XPARAMETERS_PS_H_
 	usleep(msecs * 1000);
 #else
-	usleep(msecs * 50);	// FIXME
+	usleep_MB(msecs * 1000);
 #endif
 }

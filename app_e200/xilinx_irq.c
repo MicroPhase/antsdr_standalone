@@ -1,5 +1,5 @@
 /***************************************************************************//**
- *   @file   xilinx/irq.c
+ *   @file   xilinx/xilinx_irq.c
  *   @brief  Implementation of Xilinx IRQ Generic Driver.
  *   @author Cristian Pop (cristian.pop@analog.com)
 ********************************************************************************
@@ -43,8 +43,8 @@
 
 #include <xparameters.h>
 #include <stdlib.h>
-#include "error.h"
-#include "irq.h"
+#include "no_os_error.h"
+#include "no_os_irq.h"
 #include "irq_extra.h"
 #ifdef XPAR_XSCUGIC_NUM_INSTANCES
 #include <xscugic.h>
@@ -64,25 +64,25 @@
  * @brief Initialize the IRQ interrupts.
  * @param desc - The IRQ controller descriptor.
  * @param param - The structure that contains the IRQ parameters.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_ctrl_init(struct irq_ctrl_desc **desc,
-		      const struct irq_init_param *param)
+int32_t xil_irq_ctrl_init(struct no_os_irq_ctrl_desc **desc,
+			  const struct no_os_irq_init_param *param)
 {
 	int32_t status;
-	struct irq_ctrl_desc *descriptor;
+	struct no_os_irq_ctrl_desc *descriptor;
 	struct xil_irq_desc *xil_dev;
 #ifdef XSCUGIC_H
 	void *config;
 #endif
 
-	descriptor = (struct irq_ctrl_desc *)calloc(1, sizeof *descriptor);
+	descriptor = (struct no_os_irq_ctrl_desc *)calloc(1, sizeof *descriptor);
 	if(!descriptor)
-		return FAILURE;
+		return -1;
 	xil_dev = (struct xil_irq_desc *)calloc(1, sizeof *xil_dev);
 	if(!xil_dev) {
 		free(descriptor);
-		return FAILURE;
+		return -1;
 	}
 
 	Xil_ExceptionInit();
@@ -104,7 +104,7 @@ int32_t irq_ctrl_init(struct irq_ctrl_desc **desc,
 
 		status = XScuGic_CfgInitialize(xil_dev->instance, config,
 					       ((XScuGic_Config *)config)->CpuBaseAddress);
-		if (status != SUCCESS)
+		if (status != 0)
 			goto ps_error;
 
 		Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT,
@@ -123,11 +123,11 @@ ps_error:
 			goto error;
 
 		status = XIntc_Initialize(xil_dev->instance, descriptor->irq_ctrl_id);
-		if(status != SUCCESS)
+		if(status != 0)
 			goto pl_error;
 
 		status = XIntc_Start(xil_dev->instance, XIN_REAL_MODE);
-		if(status != SUCCESS)
+		if(status != 0)
 			goto pl_error;
 
 		break;
@@ -143,46 +143,46 @@ pl_error:
 
 	*desc = descriptor;
 
-	return SUCCESS;
+	return 0;
 
 error:
 	free(xil_dev);
 	free(descriptor);
 
-	return FAILURE;
+	return -1;
 }
 
 /**
  * @brief Enable global interrupts.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_global_enable(struct irq_ctrl_desc *desc)
+int32_t xil_irq_global_enable(struct no_os_irq_ctrl_desc *desc)
 {
 	/* Enable interrupts */
 	Xil_ExceptionEnable();
 
-	return SUCCESS;
+	return 0;
 }
 
 /**
  * @brief Disable global interrupts.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_global_disable(struct irq_ctrl_desc *desc)
+int32_t xil_irq_global_disable(struct no_os_irq_ctrl_desc *desc)
 {
 	/* Disable interrupts */
 	Xil_ExceptionDisable();
 
-	return SUCCESS;
+	return 0;
 }
 
 /**
  * @brief Enable specific interrupt.
  * @param desc - The IRQ controller descriptor.
  * @param irq_id - Interrupt identifier.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_enable(struct irq_ctrl_desc *desc, uint32_t irq_id)
+int32_t xil_irq_enable(struct no_os_irq_ctrl_desc *desc, uint32_t irq_id)
 {
 	struct xil_irq_desc *xil_dev = desc->extra;
 
@@ -199,19 +199,19 @@ int32_t irq_enable(struct irq_ctrl_desc *desc, uint32_t irq_id)
 		break;
 	default:
 
-		return FAILURE;
+		return -1;
 	}
 
-	return SUCCESS;
+	return 0;
 }
 
 /**
  * @brief Disable specific interrupt.
  * @param desc - The IRQ controller descriptor.
  * @param irq_id - Interrupt identifier.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_disable(struct irq_ctrl_desc *desc, uint32_t irq_id)
+int32_t xil_irq_disable(struct no_os_irq_ctrl_desc *desc, uint32_t irq_id)
 {
 	struct xil_irq_desc *xil_dev = desc->extra;
 
@@ -228,10 +228,10 @@ int32_t irq_disable(struct irq_ctrl_desc *desc, uint32_t irq_id)
 		break;
 	default:
 
-		return FAILURE;
+		return -1;
 	}
 
-	return SUCCESS;
+	return 0;
 }
 
 /**
@@ -239,10 +239,11 @@ int32_t irq_disable(struct irq_ctrl_desc *desc, uint32_t irq_id)
  * @param desc - The IRQ controller descriptor.
  * @param irq_id - Interrupt identifier.
  * @param callback_desc - Callback descriptor
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_register_callback(struct irq_ctrl_desc *desc, uint32_t irq_id,
-			      struct callback_desc *callback_desc)
+int32_t xil_irq_register_callback(struct no_os_irq_ctrl_desc *desc,
+				  uint32_t irq_id,
+				  struct no_os_callback_desc *callback_desc)
 {
 	struct xil_irq_desc *xil_dev = desc->extra;
 
@@ -250,7 +251,7 @@ int32_t irq_register_callback(struct irq_ctrl_desc *desc, uint32_t irq_id,
 	case IRQ_PS:
 #ifdef XSCUGIC_H
 		return XScuGic_Connect(xil_dev->instance, irq_id,
-				       (Xil_InterruptHandler) callback_desc->callback,
+				       (Xil_InterruptHandler) callback_desc->legacy_callback,
 				       callback_desc->ctx);
 #endif
 		break;
@@ -260,17 +261,17 @@ int32_t irq_register_callback(struct irq_ctrl_desc *desc, uint32_t irq_id,
 			int32_t ret;
 
 			ret = XIntc_Connect(xil_dev->instance, irq_id,
-					    XTmrCtr_InterruptHandler, callback_desc->config);
-			if (IS_ERR_VALUE(ret))
-				return FAILURE;
-			XTmrCtr_SetHandler(callback_desc->config,
-					   (XTmrCtr_Handler)callback_desc->callback,
+					    XTmrCtr_InterruptHandler, callback_desc->legacy_config);
+			if (NO_OS_IS_ERR_VALUE(ret))
+				return -1;
+			XTmrCtr_SetHandler(callback_desc->legacy_config,
+					   (XTmrCtr_Handler)callback_desc->legacy_callback,
 					   callback_desc->ctx);
 
-			return SUCCESS;
+			return 0;
 		}
 		return XIntc_Connect(xil_dev->instance, irq_id,
-				     (XInterruptHandler) callback_desc->callback,
+				     (XInterruptHandler) callback_desc->legacy_callback,
 				     callback_desc->ctx);
 #endif
 		break;
@@ -278,7 +279,7 @@ int32_t irq_register_callback(struct irq_ctrl_desc *desc, uint32_t irq_id,
 		break;
 	}
 
-	return FAILURE;
+	return -1;
 }
 
 /**
@@ -286,12 +287,16 @@ int32_t irq_register_callback(struct irq_ctrl_desc *desc, uint32_t irq_id,
  * @param desc - The IRQ controller descriptor.
  * @param irq_id - Interrupt identifier.
  * @param trig - New trigger level for the interrupt.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_trigger_level_set(struct irq_ctrl_desc *desc, uint32_t irq_id,
-			      enum irq_trig_level trig)
+int32_t xil_irq_trigger_level_set(struct no_os_irq_ctrl_desc *desc,
+				  uint32_t irq_id,
+				  enum no_os_irq_trig_level trig)
 {
 	struct xil_irq_desc *xil_dev = desc->extra;
+
+	if(trig == NO_OS_IRQ_EDGE_BOTH)
+		return -EINVAL;
 
 	switch(xil_dev->type) {
 	case IRQ_PS:
@@ -305,29 +310,31 @@ int32_t irq_trigger_level_set(struct irq_ctrl_desc *desc, uint32_t irq_id,
 		XScuGic_SetPriorityTriggerType(xil_dev->instance, irq_id, priority,
 					       trigger);
 
-		return SUCCESS;
+		return 0;
 #endif
 		break;
 	case IRQ_PL:
 #ifdef XINTC_H
 		/* Interrupt trigger determined in hardware. TODO: verify */
-		return SUCCESS;
+		return 0;
 #endif
 		break;
 	default:
 		break;
 	}
 
-	return FAILURE;
+	return -1;
 }
 
 /**
  * @brief Unregisters a generic IRQ handling function.
  * @param desc - The IRQ controller descriptor.
  * @param irq_id - Interrupt identifier.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @param cb - Callback descriptor.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_unregister(struct irq_ctrl_desc *desc, uint32_t irq_id)
+int32_t xil_irq_unregister_callback(struct no_os_irq_ctrl_desc *desc,
+				    uint32_t irq_id, struct callback_desc *cb)
 {
 	struct xil_irq_desc *xil_dev = desc->extra;
 
@@ -344,23 +351,38 @@ int32_t irq_unregister(struct irq_ctrl_desc *desc, uint32_t irq_id)
 		break;
 	default:
 
-		return FAILURE;
+		return -1;
 	}
 
-	return SUCCESS;
+	return 0;
 }
 
 /**
- * @brief Free the resources allocated by irq_ctrl_init().
+ * @brief Free the resources allocated by no_os_irq_ctrl_init().
  * @param desc - The IRQ control descriptor.
- * @return SUCCESS in case of success, FAILURE otherwise.
+ * @return 0 in case of success, -1 otherwise.
  */
-int32_t irq_ctrl_remove(struct irq_ctrl_desc *desc)
+int32_t xil_irq_ctrl_remove(struct no_os_irq_ctrl_desc *desc)
 {
 	struct xil_irq_desc *xil_dev = desc->extra;
 	free(xil_dev->instance);
 	free(desc->extra);
 	free(desc);
 
-	return SUCCESS;
+	return 0;
 }
+
+/**
+ * @brief Xilinx platform specific IRQ platform ops structure
+ */
+const struct no_os_irq_platform_ops xil_irq_ops = {
+	.init = &xil_irq_ctrl_init,
+	.register_callback = &xil_irq_register_callback,
+	.unregister_callback = &xil_irq_unregister_callback,
+	.global_enable = &xil_irq_global_enable,
+	.global_disable = &xil_irq_global_disable,
+	.trigger_level_set = &xil_irq_trigger_level_set,
+	.enable = &xil_irq_enable,
+	.disable = &xil_irq_disable,
+	.remove = &xil_irq_ctrl_remove
+};

@@ -1,7 +1,7 @@
 /***************************************************************************//**
- *   @file   axi_io.h
- *   @brief  Header file of AXI IO.
- *   @author Antoniu Miclaus (antoniu.miclaus@analog.com)
+ *   @file   no_os_delay.h
+ *   @brief  Header file of Delay functions
+ *   @author DBogdan (dragos.bogdan@analog.com)
 ********************************************************************************
  * Copyright 2019(c) Analog Devices, Inc.
  *
@@ -37,8 +37,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
 
-#ifndef AXI_IO_H_
-#define AXI_IO_H_
+#ifndef _NO_OS_DELAY_H_
+#define _NO_OS_DELAY_H_
 
 /******************************************************************************/
 /***************************** Include Files **********************************/
@@ -50,10 +50,10 @@
 /************************ Functions Declarations ******************************/
 /******************************************************************************/
 
-/* AXI IO Read data */
-int32_t axi_io_read(uint32_t base, uint32_t offset, uint32_t *data);
+/* Generate microseconds delay. */
+void no_os_udelay(uint32_t usecs);
 
-/* AXI IO Write data */
-int32_t axi_io_write(uint32_t base, uint32_t offset, uint32_t data);
+/* Generate miliseconds delay. */
+void no_os_mdelay(uint32_t msecs);
 
-#endif // AXI_IO_H_
+#endif // _NO_OS_DELAY_H_

@@ -48,6 +48,7 @@
 /******************************************************************************/
 /********************** Macros and Constants Definitions **********************/
 /******************************************************************************/
+#define UART_BAUDRATE 921600
 #ifdef XPAR_AXI_AD9361_0_BASEADDR
 #define AD9361_RX_0_BASEADDR		XPAR_AXI_AD9361_0_BASEADDR
 #define AD9361_TX_0_BASEADDR		XPAR_AXI_AD9361_0_BASEADDR + 0x4000
@@ -99,7 +100,7 @@
 #define GPIO_ENABLE_PIN				69
 #define GPIO_TXNRX_PIN        		70
 #define SPI_DEVICE_ID				XPAR_PS7_SPI_0_DEVICE_ID
-#define GIC_DEVICE_ID				XPAR_PS7_SCUGIC_0_DEVICE_ID
+#define UART_IRQ_ID				XPAR_XUARTPS_1_INTR
 #endif
 #define GPIO_RESET_PIN_ZC702		84
 #define GPIO_RESET_PIN_ZC706		83
@@ -141,6 +142,10 @@
 #define TX_CORE_BASEADDR	AD9361_TX_0_BASEADDR
 #endif
 
+#define DAC_BUFFER_SAMPLES 1024
+#define ADC_BUFFER_SAMPLES 16384
+#define ADC_CHANNELS 4
+
 #if defined LINUX_PLATFORM || defined GENERIC_PLATFORM
 #define RX_CORE_BASEADDR			0
 #define TX_CORE_BASEADDR			1
@@ -149,6 +154,11 @@
 
 #define SPI_DEVICE_ID		0
 #define SPI_CS			0
+
+#define MAX_SIZE_BASE_ADDR 0x1000
+
+#define DAC_DDR_BASEADDR	((uintptr_t)out_buff)
+#define ADC_DDR_BASEADDR	((uintptr_t)in_buff)
 
 #define GPIO_RESET_PIN	1006
 #endif

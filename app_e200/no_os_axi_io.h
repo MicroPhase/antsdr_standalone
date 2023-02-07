@@ -1,9 +1,9 @@
 /***************************************************************************//**
- *   @file   common.h
- *   @brief  Header file of Common Driver.
- *   @author DBogdan (dragos.bogdan@analog.com)
+ *   @file   no_os_axi_io.h
+ *   @brief  Header file of AXI IO.
+ *   @author Antoniu Miclaus (antoniu.miclaus@analog.com)
 ********************************************************************************
- * Copyright 2013(c) Analog Devices, Inc.
+ * Copyright 2019(c) Analog Devices, Inc.
  *
  * All rights reserved.
  *
@@ -36,31 +36,24 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
-#ifndef COMMON_H_
-#define COMMON_H_
+
+#ifndef _NO_OS_AXI_IO_H_
+#define _NO_OS_AXI_IO_H_
 
 /******************************************************************************/
 /***************************** Include Files **********************************/
 /******************************************************************************/
+
 #include <stdint.h>
-#include "no_os_error.h"
 
 /******************************************************************************/
-/*************************** Types Declarations *******************************/
+/************************ Functions Declarations ******************************/
 /******************************************************************************/
-#if defined (__STDC__) && (__STDC_VERSION__ >= 199901L)
-#include <stdbool.h>
-#else
-typedef enum { false, true } bool;
-#endif
 
-struct no_os_clk {
-	const char	*name;
-	uint32_t	rate;
-};
+/* AXI IO Read data */
+int32_t no_os_axi_io_read(uint32_t base, uint32_t offset, uint32_t *data);
 
-struct no_os_clk_hw {
-	struct no_os_clk *clk;
-};
+/* AXI IO Write data */
+int32_t no_os_axi_io_write(uint32_t base, uint32_t offset, uint32_t data);
 
-#endif
+#endif // _NO_OS_AXI_IO_H_

@@ -1,7 +1,7 @@
-/***************************************************************************//**
- *   @file   error.h
- *   @brief  Error codes definition
- *   @author DBogdan (dragos.bogdan@analog.com)
+/*******************************************************************************
+ *   @file   xilinx/uart_extra.h
+ *   @brief  Header containing types used in the uart driver.
+ *   @author Cristian Pop (cristian.pop@analog.com)
 ********************************************************************************
  * Copyright 2019(c) Analog Devices, Inc.
  *
@@ -37,29 +37,71 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
 
-#ifndef ERROR_H_
-#define ERROR_H_
+#ifndef UART_EXTRA_H_
+#define UART_EXTRA_H_
 
-#include <errno.h>
+/******************************************************************************/
+/***************************** Include Files **********************************/
+/******************************************************************************/
 
 /******************************************************************************/
 /********************** Macros and Constants Definitions **********************/
 /******************************************************************************/
 
-#ifndef SUCCESS
-#define SUCCESS		0
+#define UART_BUFF_LENGTH 256
+
+/******************************************************************************/
+/*************************** Types Declarations *******************************/
+/******************************************************************************/
+
+/**
+ * @enum xil_uart_type
+ * @brief Xilinx platform architecture sections
+ */
+enum xil_uart_type {
+	/** Programmable Logic */
+	UART_PL,
+	/** Processing System */
+	UART_PS
+};
+
+/**
+ * @struct xil_uart_init_param
+ * @brief Structure holding the initialization parameters for Xilinx platform
+ * specific UART parameters.
+ */
+struct xil_uart_init_param {
+	/** Xilinx architecture */
+	enum xil_uart_type	type;
+	/** Interrupt Request ID */
+	uint32_t			irq_id;
+	/** Interrupt Request Descriptor */
+	struct no_os_irq_ctrl_desc *irq_desc;
+};
+
+/**
+ * @struct xil_uart_desc
+ * @brief Xilinx platform specific UART descriptor
+ */
+struct xil_uart_desc {
+	/** Xilinx architecture */
+	enum xil_uart_type	type;
+	/** Interrupt Request ID */
+	uint32_t			irq_id;
+	/** Interrupt Request Descriptor */
+	struct no_os_irq_ctrl_desc *irq_desc;
+	/** FIFO */
+	struct no_os_fifo_element	*fifo;
+	/** FIFO read offset */
+	uint32_t 			fifo_read_offset;
+	/** UART Buffer */
+	char 				buff[UART_BUFF_LENGTH];
+	/** Number of bytes received */
+	uint32_t 			bytes_received;
+	/** Total number of errors */
+	uint32_t 			total_error_count;
+	/** UART Instance */
+	void				*instance;
+};
+
 #endif
-#ifndef FAILURE
-#define FAILURE		-1
-#endif
-
-#ifndef __ELASTERROR
-#define __ELASTERROR 2000
-#endif
-
-#define EOVERRUN	(__ELASTERROR + 1) /* Circular buffer overrun */
-
-
-#define IS_ERR_VALUE(x)	((x) < 0)
-
-#endif // ERROR_H_

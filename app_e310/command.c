@@ -179,17 +179,17 @@ void get_tx_lo_freq(double* param, char param_no) // "tx_lo_freq?" command
 #ifdef ANTSDR_E310
 	/* set tx rf switch */
 	if(lo_freq_hz <= 3000000000){
-		gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,0);
-		gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,1);
-		gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,0);
-		gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,1);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,0);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,1);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,0);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,1);
 		ad9361_set_tx_rf_port_output(ad9361_phy, TXB);
 	}
 	else {
-		gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,1);
-		gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,0);
-		gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,1);
-		gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,0);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,1);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,0);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,1);
+		no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,0);
 		ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
 	}
 #else
@@ -216,17 +216,17 @@ void set_tx_lo_freq(double* param, char param_no) // "tx_lo_freq=" command
 #ifdef ANTSDR_E310
 		/* set tx rf switch */
 		if(lo_freq_hz <= 3000000000){
-			gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,0);
-			gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,1);
-			gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,0);
-			gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,1);
 			ad9361_set_tx_rf_port_output(ad9361_phy, TXB);
 		}
 		else {
-			gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,1);
-			gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,0);
-			gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,1);
-			gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_h   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx1_ctrl_l   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_h   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_tx2_ctrl_l   ,0);
 			ad9361_set_tx_rf_port_output(ad9361_phy, TXA);
 		}
 #else
@@ -430,17 +430,17 @@ void set_rx_lo_freq(double* param, char param_no) // "rx_lo_freq=" command
 #ifdef ANTSDR_E310
 		/* set rx rf swicth */
 		if(lo_freq_hz <= 3000000000){
-			gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_h   ,0);
-			gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_l   ,1);
-			gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_h   ,0);
-			gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_l   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_h   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_l   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_h   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_l   ,1);
 			ad9361_set_rx_rf_port_input(ad9361_phy, B_BALANCED);
 		}
 		else {
-			gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_h   ,1);
-			gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_l   ,0);
-			gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_h   ,1);
-			gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_l   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_h   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx1_ctrl_l   ,0);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_h   ,1);
+			no_os_gpio_set_value(ad9361_phy->gpio_desc_rx2_ctrl_l   ,0);
 			ad9361_set_rx_rf_port_input(ad9361_phy, A_BALANCED);
 		}
 

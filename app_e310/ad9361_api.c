@@ -42,9 +42,9 @@
 /******************************************************************************/
 #include "ad9361.h"
 #include "ad9361_api.h"
-#include "delay.h"
-#include "spi.h"
-#include "util.h"
+#include "no_os_delay.h"
+#include "no_os_spi.h"
+#include "no_os_util.h"
 #include "app_config.h"
 #include <string.h>
 #ifndef AXI_ADC_NOT_PRESENT
@@ -91,7 +91,7 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 		return -ENOMEM;
 	}
 
-	phy->clk_refin = (struct clk *)zmalloc(sizeof(*phy->clk_refin));
+	phy->clk_refin = (struct no_os_clk *)zmalloc(sizeof(*phy->clk_refin));
 	if (!phy->clk_refin) {
 		return -ENOMEM;
 	}
@@ -115,9 +115,6 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 
 	/* Device selection */
 	phy->dev_sel = init_param->dev_sel;
-
-	/* Identification number */
-	phy->id_no = init_param->id_no;
 
 	/* Reference Clock */
 	phy->clk_refin->rate = init_param->reference_clk_rate;
@@ -484,34 +481,15 @@ int32_t ad9361_init (struct ad9361_rf_phy **ad9361_phy,
 
 	phy->pdata->debug_mode = true;
 
-	gpio_get(&phy->gpio_desc_resetb, &init_param->gpio_resetb);
+	no_os_gpio_get(&phy->gpio_desc_resetb, &init_param->gpio_resetb);
 	/* Optional: next three GPIOs are used for MCS synchronization */
-	gpio_get_optional(&phy->gpio_desc_sync, &init_param->gpio_sync);
-	gpio_get_optional(&phy->gpio_desc_cal_sw1, &init_param->gpio_cal_sw1);
-	gpio_get_optional(&phy->gpio_desc_cal_sw2, &init_param->gpio_cal_sw2);
+	no_os_gpio_get_optional(&phy->gpio_desc_sync, &init_param->gpio_sync);
+	no_os_gpio_get_optional(&phy->gpio_desc_cal_sw1, &init_param->gpio_cal_sw1);
+	no_os_gpio_get_optional(&phy->gpio_desc_cal_sw2, &init_param->gpio_cal_sw2);
 
-	gpio_get(&phy->gpio_desc_rx1_ctrl_h, &init_param->gpio_rx1_ctrl_h);
-	gpio_get(&phy->gpio_desc_rx1_ctrl_l, &init_param->gpio_rx1_ctrl_l);
-	gpio_get(&phy->gpio_desc_tx1_ctrl_h, &init_param->gpio_tx1_ctrl_h);
-	gpio_get(&phy->gpio_desc_tx1_ctrl_l, &init_param->gpio_tx1_ctrl_l);
-	gpio_get(&phy->gpio_desc_rx2_ctrl_h, &init_param->gpio_rx2_ctrl_h);
-	gpio_get(&phy->gpio_desc_rx2_ctrl_l, &init_param->gpio_rx2_ctrl_l);
-	gpio_get(&phy->gpio_desc_tx2_ctrl_h, &init_param->gpio_tx2_ctrl_h);
-	gpio_get(&phy->gpio_desc_tx2_ctrl_l, &init_param->gpio_tx2_ctrl_l);
+	no_os_gpio_direction_output(phy->gpio_desc_resetb, 0);
 
-
-	gpio_direction_output(phy->gpio_desc_resetb, 0);
-
-	gpio_direction_output(phy->gpio_desc_rx1_ctrl_h, 0);
-	gpio_direction_output(phy->gpio_desc_rx1_ctrl_l, 0);
-	gpio_direction_output(phy->gpio_desc_tx1_ctrl_h, 0);
-	gpio_direction_output(phy->gpio_desc_tx1_ctrl_l, 0);
-	gpio_direction_output(phy->gpio_desc_rx2_ctrl_h, 0);
-	gpio_direction_output(phy->gpio_desc_rx2_ctrl_l, 0);
-	gpio_direction_output(phy->gpio_desc_tx2_ctrl_h, 0);
-	gpio_direction_output(phy->gpio_desc_tx2_ctrl_l, 0);
-
-	spi_init(&phy->spi, &init_param->spi_param);
+	no_os_spi_init(&phy->spi, &init_param->spi_param);
 
 	phy->pdata->port_ctrl.digital_io_ctrl = 0;
 	phy->pdata->port_ctrl.lvds_invert[0] = init_param->lvds_invert1_control;
@@ -608,11 +586,11 @@ out:
 int32_t ad9361_remove(struct ad9361_rf_phy *phy)
 {
 	ad9361_unregister_clocks(phy);
-	spi_remove(phy->spi);
-	gpio_remove(phy->gpio_desc_resetb);
-	gpio_remove(phy->gpio_desc_sync);
-	gpio_remove(phy->gpio_desc_cal_sw1);
-	gpio_remove(phy->gpio_desc_cal_sw2);
+	no_os_spi_remove(phy->spi);
+	no_os_gpio_remove(phy->gpio_desc_resetb);
+	no_os_gpio_remove(phy->gpio_desc_sync);
+	no_os_gpio_remove(phy->gpio_desc_cal_sw1);
+	no_os_gpio_remove(phy->gpio_desc_cal_sw2);
 #ifndef AXI_ADC_NOT_PRESENT
 	free(phy->adc_conv);
 	free(phy->adc_state);
@@ -891,8 +869,8 @@ int32_t ad9361_set_rx_lo_freq (struct ad9361_rf_phy *phy,
 {
 	int32_t ret;
 
-	ret = clk_set_rate(phy, phy->ref_clk_scale[RX_RFPLL],
-			   ad9361_to_clk(lo_freq_hz));
+	ret = no_os_clk_set_rate(phy, phy->ref_clk_scale[RX_RFPLL],
+				 ad9361_to_clk(lo_freq_hz));
 
 	return ret;
 }
@@ -1531,8 +1509,8 @@ int32_t ad9361_set_tx_lo_freq (struct ad9361_rf_phy *phy,
 {
 	int32_t ret;
 
-	ret = clk_set_rate(phy, phy->ref_clk_scale[TX_RFPLL],
-			   ad9361_to_clk(lo_freq_hz));
+	ret = no_os_clk_set_rate(phy, phy->ref_clk_scale[TX_RFPLL],
+				 ad9361_to_clk(lo_freq_hz));
 
 	return ret;
 }
@@ -1705,7 +1683,7 @@ int32_t ad9361_get_tx_rssi (struct ad9361_rf_phy *phy,
 	int32_t ret;
 
 	ret = ad9361_spi_readm(phy->spi, REG_TX_RSSI_LSB,
-			       reg_val_buf, ARRAY_SIZE(reg_val_buf));
+			       reg_val_buf, NO_OS_ARRAY_SIZE(reg_val_buf));
 	if (ret < 0) {
 		return ret;
 	}
@@ -2050,7 +2028,7 @@ int32_t ad9361_do_mcs(struct ad9361_rf_phy *phy_master,
 	for (step = 0; step <= 5; step++) {
 		ad9361_mcs(phy_slave, step);
 		ad9361_mcs(phy_master, step);
-		mdelay(100);
+		no_os_mdelay(100);
 	}
 
 	ad9361_set_en_state_machine_mode(phy_master, ensm_mode);
@@ -2152,7 +2130,7 @@ int32_t ad9361_trx_load_enable_fir(struct ad9361_rf_phy *phy,
 				   AD9361_RXFIRConfig rx_fir_cfg,
 				   AD9361_TXFIRConfig tx_fir_cfg)
 {
-	int32_t rtx = -1, rrx = -1;
+	int32_t rtx = -1, rrx = -1, ret;
 
 	phy->filt_rx_bw_Hz = 0;
 	phy->filt_tx_bw_Hz = 0;
@@ -2178,13 +2156,20 @@ int32_t ad9361_trx_load_enable_fir(struct ad9361_rf_phy *phy,
 		phy->filt_rx_bw_Hz = rx_fir_cfg.rx_bandwidth;
 	}
 
-	ad9361_set_tx_fir_config(phy, tx_fir_cfg);
-	ad9361_set_rx_fir_config(phy, rx_fir_cfg);
+	ret = ad9361_set_tx_fir_config(phy, tx_fir_cfg);
+	if (ret < 0)
+		return ret;
+
+	ret = ad9361_set_rx_fir_config(phy, rx_fir_cfg);
+	if (ret < 0)
+		return ret;
 
 	if (!(rrx | rtx))
 		phy->filt_valid = true;
 
-	ad9361_set_trx_fir_en_dis(phy, 1);
+	ret = ad9361_set_trx_fir_en_dis(phy, 1);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }

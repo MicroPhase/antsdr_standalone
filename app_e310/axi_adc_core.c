@@ -43,39 +43,51 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
-#include "error.h"
-#include "delay.h"
-#include "util.h"
+#include "no_os_error.h"
+#include "no_os_delay.h"
+#include "no_os_util.h"
 #include "axi_adc_core.h"
-#include "axi_io.h"
+#include "no_os_axi_io.h"
 
-/***************************************************************************//**
- * @brief axi_adc_read
- *******************************************************************************/
+/**
+ * @brief AXI ADC Data read.
+ * @param adc - The device structure.
+ * @param reg_addr - The register address.
+ * @param reg_data - Read data value.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_read(struct axi_adc *adc,
 		     uint32_t reg_addr,
 		     uint32_t *reg_data)
 {
-	axi_io_read(adc->base, reg_addr, reg_data);
+	no_os_axi_io_read(adc->base, reg_addr, reg_data);
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_write
- *******************************************************************************/
+/**
+ * @brief AXI ADC Data Write.
+ * @param adc - The device structure.
+ * @param reg_addr - The register address.
+ * @param reg_data - Data value to be written.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_write(struct axi_adc *adc,
 		      uint32_t reg_addr,
 		      uint32_t reg_data)
 {
-	axi_io_write(adc->base, reg_addr, reg_data);
+	no_os_axi_io_write(adc->base, reg_addr, reg_data);
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_set_pnsel
-*******************************************************************************/
+/**
+ * @brief Set AXI ADC PN sequence.
+ * @param adc - The device structure.
+ * @param chan - The AXI ADC channel.
+ * @param sel - PN sequence.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_set_pnsel(struct axi_adc *adc,
 			  uint32_t chan,
 			  enum axi_adc_pn_sel sel)
@@ -87,12 +99,16 @@ int32_t axi_adc_set_pnsel(struct axi_adc *adc,
 	reg_data |= AXI_ADC_ADC_PN_SEL(sel);
 	axi_adc_write(adc, AXI_ADC_REG_CHAN_CNTRL_3(chan), reg_data);
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_pn_mon
-*******************************************************************************/
+/**
+ * @brief Monitor the AXI ADC PN Sequence.
+ * @param adc - The device structure.
+ * @param sel - PN sequence.
+ * @param delay_ms - Delay in ms.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_pn_mon(struct axi_adc *adc,
 		       enum axi_adc_pn_sel sel, uint32_t delay_ms)
 {
@@ -105,25 +121,29 @@ int32_t axi_adc_pn_mon(struct axi_adc *adc,
 		axi_adc_write(adc, AXI_ADC_REG_CHAN_CNTRL(ch), reg_data);
 		axi_adc_set_pnsel(adc, ch, sel);
 	}
-	mdelay(1);
+	no_os_mdelay(1);
 
 	for (ch = 0; ch < adc->num_channels; ch++) {
 		axi_adc_write(adc, AXI_ADC_REG_CHAN_STATUS(ch), 0xff);
 	}
-	mdelay(delay_ms);
+	no_os_mdelay(delay_ms);
 
 	for (ch = 0; ch < adc->num_channels; ch++) {
 		axi_adc_read(adc, AXI_ADC_REG_CHAN_STATUS(ch), &reg_data);
 		if (reg_data != 0)
-			return FAILURE;
+			return -1;
 	}
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_get_sampling_freq
-*******************************************************************************/
+/**
+ * @brief Get the AXI ADC Sampling Frequency
+ * @param adc - The device structure.
+ * @param chan - The AXI ADC channel.
+ * @param sampling_freq - Sampling frequency value.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_get_sampling_freq(struct axi_adc *adc,
 				  uint32_t chan,
 				  uint64_t *sampling_freq)
@@ -136,12 +156,15 @@ int32_t axi_adc_get_sampling_freq(struct axi_adc *adc,
 	*sampling_freq = freq * ratio;
 	*sampling_freq = ((*sampling_freq) * 390625) >> 8;
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_idelay_set
-*******************************************************************************/
+/**
+ * @brief Set input/output delay primitive for specific interface line
+ * @param adc - The device structure.
+ * @param lane - The AXI ADC interface line.
+ * @param val - Delay value.
+ */
 void axi_adc_idelay_set(struct axi_adc *adc,
 			uint32_t lane,
 			uint32_t val)
@@ -150,9 +173,13 @@ void axi_adc_idelay_set(struct axi_adc *adc,
 
 }
 
-/***************************************************************************//**
- * @brief axi_adc_delay_set
-*******************************************************************************/
+/**
+ * @brief Set input/output delay primitive for number of lines
+ * @param adc - The device structure.
+ * @param no_of_lanes - The AXI ADC number of lanes.
+ * @param delay - Delay value.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_delay_set(struct axi_adc *adc,
 			  uint32_t no_of_lanes,
 			  uint32_t delay)
@@ -164,26 +191,30 @@ int32_t axi_adc_delay_set(struct axi_adc *adc,
 	axi_adc_read(adc, 0x0, &pcore_version);
 	pcore_version >>= 16;
 	if (pcore_version < 9) {
-		printf(" pcore_version is : %d\n\r", pcore_version);
+		printf(" pcore_version is : %d\n\r", (int)pcore_version);
 		printf(" DRIVER DOES NOT SUPPORT PCORE VERSIONS OLDER THAN 10 !");
-		return FAILURE;
+		return -1;
 	} else {
 		for (i = 0; i < no_of_lanes; i++) {
 			axi_adc_idelay_set(adc, i, delay);
 			axi_adc_read(adc, AXI_ADC_REG_DELAY(i), &rdata);
 			if (rdata != delay) {
 				printf("adc_delay_1: sel(%2d), rcv(%04x), exp(%04x)\n\r",
-				       i, rdata, delay);
+				       (int)i, (int)rdata, (int)delay);
 			}
 		}
 	}
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_delay_calibrate
-*******************************************************************************/
+/**
+ * @brief Calibrate Delay using specific PN sequence.
+ * @param adc - The device structure.
+ * @param no_of_lanes - The AXI ADC number of lanes.
+ * @param sel - PN sequence.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_delay_calibrate(struct axi_adc *adc,
 				uint32_t no_of_lanes,
 				enum axi_adc_pn_sel sel)
@@ -204,7 +235,7 @@ int32_t axi_adc_delay_calibrate(struct axi_adc *adc,
 
 	for (delay = 0; delay < 32; delay++) {
 		axi_adc_delay_set(adc, no_of_lanes, delay);
-		mdelay(20);
+		no_os_mdelay(20);
 		if (axi_adc_pn_mon(adc, sel, 100) == 0) {
 			err_field[delay] = 0;
 			start_valid_delay = start_valid_delay == 32 ?
@@ -216,7 +247,7 @@ int32_t axi_adc_delay_calibrate(struct axi_adc *adc,
 	if (start_valid_delay > 31) {
 		printf("%s FAILED.\n", __func__);
 		axi_adc_delay_set(adc, no_of_lanes, 0);
-		return FAILURE;
+		return -1;
 	}
 
 	start_valid_delay = 32;
@@ -259,12 +290,18 @@ int32_t axi_adc_delay_calibrate(struct axi_adc *adc,
 	printf("adc_delay: setting zero error delay (%d)\n\r", delay);
 	axi_adc_delay_set(adc, no_of_lanes, delay);
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_set_calib_phase_scale
-*******************************************************************************/
+/**
+ * @brief Calibrate phase for specific AXI ADC channel.
+ * @param adc - The device structure.
+ * @param phase - The AXI ADC phase value.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_set_calib_phase_scale(struct axi_adc *adc,
 				      uint32_t phase,
 				      uint32_t chan,
@@ -290,11 +327,11 @@ int32_t axi_adc_set_calib_phase_scale(struct axi_adc *adc,
 		}
 		break;
 	default:
-		return FAILURE;
+		return -1;
 	}
 
 	llval = (uint64_t)val2 * 0x4000UL + (1000000UL / 2);
-	do_div(&llval, 1000000UL);
+	no_os_do_div(&llval, 1000000UL);
 	fract |= llval;
 
 	axi_adc_read(adc, AXI_ADC_REG_CHAN_CNTRL_2(chan), &tmp);
@@ -309,12 +346,18 @@ int32_t axi_adc_set_calib_phase_scale(struct axi_adc *adc,
 
 	axi_adc_write(adc, AXI_ADC_REG_CHAN_CNTRL_2(chan), tmp);
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_get_calib_scale_phase
-*******************************************************************************/
+/**
+ * @brief Get the phase calibration values for AXI ADC channel.
+ * @param adc - The device structure.
+ * @param phase - The AXI ADC phase value.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_get_calib_phase_scale(struct axi_adc *adc,
 				      uint32_t phase,
 				      uint32_t chan,
@@ -346,18 +389,23 @@ int32_t axi_adc_get_calib_phase_scale(struct axi_adc *adc,
 	tmp &= ~0xC000;
 
 	llval = tmp * 1000000ULL + (0x4000 / 2);
-	do_div(&llval, 0x4000);
+	no_os_do_div(&llval, 0x4000);
 	if (*val == 0)
 		*val2 = llval * sign;
 	else
 		*val2 = llval;
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_set_calib_phase
-*******************************************************************************/
+/**
+ * @brief Calibrate phase for specific AXI ADC channel.
+ * @param adc - The device structure.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_set_calib_phase(struct axi_adc *adc,
 				uint32_t chan,
 				int32_t val,
@@ -366,9 +414,14 @@ int32_t axi_adc_set_calib_phase(struct axi_adc *adc,
 	return axi_adc_set_calib_phase_scale(adc, 1, chan, val, val2);
 }
 
-/***************************************************************************//**
- * @brief adc_get_calib_phase
-*******************************************************************************/
+/**
+ * @brief Get the phase calibration values for AXI ADC channel.
+ * @param adc - The device structure.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_get_calib_phase(struct axi_adc *adc,
 				uint32_t chan,
 				int32_t *val,
@@ -377,9 +430,14 @@ int32_t axi_adc_get_calib_phase(struct axi_adc *adc,
 	return axi_adc_get_calib_phase_scale(adc, 1, chan, val, val2);
 }
 
-/***************************************************************************//**
- * @brief adc_set_calib_scale
-*******************************************************************************/
+/**
+ * @brief Calibrate scale for specific AXI ADC channel.
+ * @param adc - The device structure.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_set_calib_scale(struct axi_adc *adc,
 				uint32_t chan,
 				int32_t val,
@@ -388,9 +446,14 @@ int32_t axi_adc_set_calib_scale(struct axi_adc *adc,
 	return axi_adc_set_calib_phase_scale(adc, 0, chan, val, val2);
 }
 
-/***************************************************************************//**
- * @brief adc_get_calib_scale
-*******************************************************************************/
+/**
+ * @brief Get the scale calibration values for AXI ADC channel.
+ * @param adc - The device structure.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_get_calib_scale(struct axi_adc *adc,
 				uint32_t chan,
 				int32_t *val,
@@ -399,9 +462,14 @@ int32_t axi_adc_get_calib_scale(struct axi_adc *adc,
 	return axi_adc_get_calib_phase_scale(adc, 0, chan, val, val2);
 }
 
-/***************************************************************************//**
- * @brief axi_adc_set_calib_bias
-*******************************************************************************/
+/**
+ * @brief Calibrate bias for specific AXI ADC channel.
+ * @param adc - The device structure.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_set_calib_bias(struct axi_adc *adc,
 			       uint32_t chan,
 			       int32_t val,
@@ -415,12 +483,17 @@ int32_t axi_adc_set_calib_bias(struct axi_adc *adc,
 
 	axi_adc_write(adc, AXI_ADC_REG_CHAN_CNTRL_1(chan), tmp);
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief adc_get_calib_scale
-*******************************************************************************/
+/**
+ * @brief Get the scale calibration values for AXI ADC channel.
+ * @param adc - The device structure.
+ * @param chan - AXI ADC channel.
+ * @param val - Integer value
+ * @param val2 - Fractional value
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_get_calib_bias(struct axi_adc *adc,
 			       uint32_t chan,
 			       int32_t *val,
@@ -431,12 +504,14 @@ int32_t axi_adc_get_calib_bias(struct axi_adc *adc,
 	axi_adc_read(adc, AXI_ADC_REG_CHAN_CNTRL_1(chan), &tmp);
 	*val = (uint16_t)AXI_ADC_TO_DCFILT_OFFSET(tmp);
 
-	return SUCCESS;
+	return 0;
 }
-
-/***************************************************************************//**
- * @brief axi_adc_update_active_channels
- *******************************************************************************/
+/**
+ * @brief Update active AXI ADC channels.
+ * @param adc - The device structure.
+ * @param mask - Channel mask.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_update_active_channels(struct axi_adc *adc, uint32_t mask)
 {
 	uint32_t ch;
@@ -444,7 +519,7 @@ int32_t axi_adc_update_active_channels(struct axi_adc *adc, uint32_t mask)
 	uint32_t new_val;
 
 	if (mask == adc->mask)
-		return SUCCESS;
+		return 0;
 
 	adc->mask = mask;
 	for (ch = 0; ch < adc->num_channels; ch++) {
@@ -457,44 +532,48 @@ int32_t axi_adc_update_active_channels(struct axi_adc *adc, uint32_t mask)
 		mask >>= 1;
 	}
 
-	return SUCCESS;
+	return 0;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_init
- *******************************************************************************/
-int32_t axi_adc_init(struct axi_adc **adc_core,
-		     const struct axi_adc_init *init)
+/**
+ * @brief Begin AXI ADC Initialization.
+ * @param adc_core - The device structure.
+ * @param init - Initialization parameters.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
+int32_t axi_adc_init_begin(struct axi_adc **adc_core,
+			   const struct axi_adc_init *init)
 {
 	struct axi_adc *adc;
-	uint32_t reg_data;
-	uint32_t freq;
-	uint32_t ratio;
-	uint8_t ch;
 
 	adc = (struct axi_adc *)malloc(sizeof(*adc));
 	if (!adc)
-		return FAILURE;
+		return -1;
 
 	adc->name = init->name;
 	adc->base = init->base;
 	adc->num_channels = init->num_channels;
 
-	axi_adc_write(adc, AXI_ADC_REG_RSTN, 0);
-	axi_adc_write(adc, AXI_ADC_REG_RSTN,
-		      AXI_ADC_MMCM_RSTN | AXI_ADC_RSTN);
+	*adc_core = adc;
 
-	for (ch = 0; ch < adc->num_channels; ch++)
-		axi_adc_write(adc, AXI_ADC_REG_CHAN_CNTRL(ch),
-			      AXI_ADC_FORMAT_SIGNEXT | AXI_ADC_FORMAT_ENABLE |
-			      AXI_ADC_ENABLE);
+	return 0;
+};
 
-	mdelay(100);
+/**
+ * @brief Begin AXI ADC Initialization.
+ * @param adc - The device structure.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
+int32_t axi_adc_init_finish(struct axi_adc *adc)
+{
+	uint32_t reg_data;
+	uint32_t freq;
+	uint32_t ratio;
 
 	axi_adc_read(adc, AXI_ADC_REG_STATUS, &reg_data);
 	if(reg_data == 0x0) {
 		printf("%s: Status errors\n", adc->name);
-		goto error;
+		return -1;
 	}
 
 	axi_adc_read(adc, AXI_ADC_REG_CLK_FREQ, &freq);
@@ -505,21 +584,58 @@ int32_t axi_adc_init(struct axi_adc **adc_core,
 	printf("%s: Successfully initialized (%"PRIu64" Hz)\n",
 	       adc->name, adc->clock_hz);
 
+	return 0;
+}
+
+/**
+ * @brief AXI ADC Main Initialization.
+ * @param adc_core - The device structure.
+ * @param init - Initialization parameters.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
+int32_t axi_adc_init(struct axi_adc **adc_core,
+		     const struct axi_adc_init *init)
+{
+	struct axi_adc *adc;
+	int32_t ret;
+	uint8_t ch;
+
+	ret = axi_adc_init_begin(&adc, init);
+	if (ret)
+		return ret;
+
+	axi_adc_write(adc, AXI_ADC_REG_RSTN, 0);
+	axi_adc_write(adc, AXI_ADC_REG_RSTN,
+		      AXI_ADC_MMCM_RSTN | AXI_ADC_RSTN);
+
+	for (ch = 0; ch < adc->num_channels; ch++)
+		axi_adc_write(adc, AXI_ADC_REG_CHAN_CNTRL(ch),
+			      AXI_ADC_FORMAT_SIGNEXT | AXI_ADC_FORMAT_ENABLE |
+			      AXI_ADC_ENABLE);
+
+	no_os_mdelay(100);
+
+	ret = axi_adc_init_finish(adc);
+	if (ret)
+		goto error;
+
 	*adc_core = adc;
 
-	return SUCCESS;
+	return 0;
 error:
 	free(adc);
 
-	return FAILURE;
+	return -1;
 }
 
-/***************************************************************************//**
- * @brief axi_adc_remove
- *******************************************************************************/
+/**
+ * @brief AXI ADC Resources deallocation.
+ * @param adc - The device structure.
+ * @return Returns 0 in case of success or negative error code otherwise.
+ */
 int32_t axi_adc_remove(struct axi_adc *adc)
 {
 	free(adc);
 
-	return SUCCESS;
+	return 0;
 }

@@ -43,8 +43,8 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 #include "ad9361_util.h"
-#include "gpio.h"
-#include "spi.h"
+#include "no_os_gpio.h"
+#include "no_os_spi.h"
 
 /******************************************************************************/
 /*************************** Types Declarations *******************************/
@@ -52,8 +52,6 @@
 typedef struct {
 	/* Device selection */
 	enum dev_id	dev_sel;
-	/* Identification number */
-	uint8_t		id_no;
 	/* Reference Clock */
 	uint32_t	reference_clk_rate;
 	/* Base Configuration */
@@ -279,22 +277,22 @@ typedef struct {
 	uint32_t	tx1_mon_lo_cm;	/* adi,txmon-1-lo-cm */
 	uint32_t	tx2_mon_lo_cm;	/* adi,txmon-2-lo-cm */
 	/* GPIO definitions */
-	struct gpio_init_param	gpio_resetb;	/* reset-gpios */
+	struct no_os_gpio_init_param	gpio_resetb;	/* reset-gpios */
 	/* MCS Sync */
-	struct gpio_init_param	gpio_sync;	/* sync-gpios */
-	struct gpio_init_param	gpio_cal_sw1;	/* cal-sw1-gpios */
-	struct gpio_init_param	gpio_cal_sw2;	/* cal-sw2-gpios */
+	struct no_os_gpio_init_param	gpio_sync;	/* sync-gpios */
+	struct no_os_gpio_init_param	gpio_cal_sw1;	/* cal-sw1-gpios */
+	struct no_os_gpio_init_param	gpio_cal_sw2;	/* cal-sw2-gpios */
 
-	struct gpio_init_param	gpio_rx1_ctrl_h;	/* cal-sw1-gpios */
-	struct gpio_init_param	gpio_rx1_ctrl_l;	/* cal-sw2-gpios */
-	struct gpio_init_param	gpio_tx1_ctrl_h;	/* cal-sw1-gpios */
-	struct gpio_init_param	gpio_tx1_ctrl_l;	/* cal-sw2-gpios */
-	struct gpio_init_param	gpio_rx2_ctrl_h;	/* cal-sw1-gpios */
-	struct gpio_init_param	gpio_rx2_ctrl_l;	/* cal-sw2-gpios */
-	struct gpio_init_param	gpio_tx2_ctrl_h;	/* cal-sw1-gpios */
-	struct gpio_init_param	gpio_tx2_ctrl_l;	/* cal-sw2-gpios */
+	struct no_os_gpio_init_param	gpio_rx1_ctrl_h;	/* cal-sw1-gpios */
+	struct no_os_gpio_init_param	gpio_rx1_ctrl_l;	/* cal-sw2-gpios */
+	struct no_os_gpio_init_param	gpio_tx1_ctrl_h;	/* cal-sw1-gpios */
+	struct no_os_gpio_init_param	gpio_tx1_ctrl_l;	/* cal-sw2-gpios */
+	struct no_os_gpio_init_param	gpio_rx2_ctrl_h;	/* cal-sw1-gpios */
+	struct no_os_gpio_init_param	gpio_rx2_ctrl_l;	/* cal-sw2-gpios */
+	struct no_os_gpio_init_param	gpio_tx2_ctrl_h;	/* cal-sw1-gpios */
+	struct no_os_gpio_init_param	gpio_tx2_ctrl_l;	/* cal-sw2-gpios */
 
-	struct spi_init_param	spi_param;
+	struct no_os_spi_init_param	spi_param;
 
 	/* External LO clocks */
 	uint32_t	(*ad9361_rfpll_ext_recalc_rate)(struct refclk_scale *clk_priv);

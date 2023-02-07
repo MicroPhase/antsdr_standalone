@@ -44,6 +44,9 @@
 /***************************** Include Files **********************************/
 /******************************************************************************/
 
+#include <stdint.h>
+#include "no_os_irq.h"
+
 /******************************************************************************/
 /*************************** Types Declarations *******************************/
 /******************************************************************************/
@@ -79,5 +82,10 @@ struct xil_irq_desc {
 	/** Xilinx IRQ Instance */
 	void				*instance;
 };
+
+/**
+ * @brief Xilinx specific IRQ platform ops structure
+ */
+extern const struct no_os_irq_platform_ops xil_irq_ops;
 
 #endif
