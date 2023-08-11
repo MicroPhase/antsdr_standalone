@@ -14,7 +14,7 @@ Standalone application based on ADI hdl and no_OS for ANTSDR.
 首先需要从github上下载对应的源码。打开**git bash**，然后在mingwin中使用如下命令下载源码。
 
 ```
-git clone -b 2021_r1 --recursive https://github.com/MicroPhase/antsdr_standalone.git
+git clone --recursive https://github.com/MicroPhase/antsdr_standalone.git
 ```
 
 ![image-20210924190649784](README.assets/image-20210924190649784.png)
