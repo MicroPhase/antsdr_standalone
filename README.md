@@ -36,7 +36,7 @@ git clone --recursive https://github.com/MicroPhase/antsdr_standalone.git
 然后依次执行如下命令：
 
 ```
-source ../../scripts/adi_make.tcl
+source ../scripts/adi_make.tcl
 adi_make::lib all
 source ./system_project.tcl
 ```
